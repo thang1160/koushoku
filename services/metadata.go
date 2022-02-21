@@ -135,8 +135,10 @@ func ImportMetadata() {
 
 		log.Println("Importing metadata of", fileName)
 		archive := modext.NewArchive(arc).LoadRels(arc)
+
 		archive.Parody = &modext.Parody{Name: metadata.Parody}
 		archive.Tags = make([]*modext.Tag, len(metadata.Tags))
+
 		for i, tag := range metadata.Tags {
 			archive.Tags[i] = &modext.Tag{Name: tag}
 		}
@@ -170,9 +172,6 @@ func ScrapeMetadata() {
 
 	metadatas := make(map[string]*Metadata)
 	for i, archive := range archives {
-		if archive.R != nil && (archive.R.Parody != nil || len(archive.R.Tags) > 0) {
-			continue
-		}
 		c <- true
 
 		go func(i int, archive *models.Archive) {
@@ -181,7 +180,7 @@ func ScrapeMetadata() {
 				<-c
 			}()
 
-			if archive.R == nil || len(archive.R.Artists) == 0 {
+			if archive.R != nil && (archive.R.Parody != nil || len(archive.R.Tags) > 0) {
 				return
 			}
 

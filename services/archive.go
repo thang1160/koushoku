@@ -84,6 +84,30 @@ func createArchiveThumbnail(f io.Reader, fp string, width int, w http.ResponseWr
 	return true
 }
 
+func ServeArchive(id int64, w http.ResponseWriter, r *http.Request) {
+	path, err := GetArchiveSymlink(int(id))
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	} else if len(path) == 0 {
+		w.WriteHeader(http.StatusNotFound)
+		return
+	}
+
+	stat, err := os.Stat(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			w.WriteHeader(http.StatusNotFound)
+		} else {
+			w.WriteHeader(http.StatusInternalServerError)
+		}
+		return
+	}
+
+	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s\"", stat.Name()))
+	http.ServeFile(w, r, path)
+}
+
 func ServeArchiveFile(id, index, width int, w http.ResponseWriter, r *http.Request) {
 	fp, ok := checkArchiveThumbnail(id, index, width, w, r)
 	if ok {

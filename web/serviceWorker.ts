@@ -4,14 +4,6 @@ import { registerRoute } from "workbox-routing";
 import { CacheFirst, StaleWhileRevalidate } from "workbox-strategies";
 
 registerRoute(
-  ({ request }) => request.mode === "navigate",
-  new StaleWhileRevalidate({
-    cacheName: "pages",
-    plugins: [new CacheableResponsePlugin({ statuses: [200] }), new ExpirationPlugin({ maxAgeSeconds: 3600 })]
-  })
-);
-
-registerRoute(
   ({ request, url }) =>
     request.destination === "style" ||
     request.destination === "script" ||

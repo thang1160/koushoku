@@ -1,0 +1,32 @@
+{{- define "feed" }}
+  <div class="entries">
+    {{- range .archives }}
+      {{- $title := (formatArchive . ) }}
+      <article class="entry">
+        <a href="/g/{{ .ID }}/{{ .Slug }}" title="{{ $title }}">
+          <figure class="thumbnail">
+            <img alt="Thumbnail for {{ $title }}" title="{{ $title }}" src="/data/{{ .ID }}/1/384.jpg" loading="lazy" />
+            <div class="metadata">
+              {{- if .Magazine }}
+                <span class="magazine">{{ .Magazine.Name }}</span>
+              {{- end }}
+              <span class="pages">{{ .Pages }} page{{- if gt .Pages 1 }}s{{- end }}</span>
+            </div>
+          </figure>
+          <div class="metadata">
+            <h3 class="title">
+              <span>{{ .Title }}</span>
+            </h3>
+            {{- if and .Artists (eq (len .Artists) 1) }}
+              {{- range .Artists }}
+                <span class="artist">{{ .Name }}</span>
+              {{- end }}
+            {{- else if .Circle }}
+              <span class="circle">{{ .Circle.Name }}</span>
+            {{- end }}
+          </div>
+        </a>
+      </article>
+    {{- end }}
+  </div>
+{{- end }}

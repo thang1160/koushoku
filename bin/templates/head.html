@@ -1,0 +1,19 @@
+{{- define "head" -}}
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    {{- $title := .title }}
+    {{- if .archive }}
+      {{- $title = printf "%s - %s" .archive.Title $title }}
+    {{- else }}
+      {{- $title = printf "%s - %s" .name $title }}
+    {{- end }}
+    <title>{{ $title }}</title>
+
+    <meta name="robots" content="noindex,nofollow" />
+    <meta name="googlebot" content="noindex,nofollow" />
+
+    <link rel="canonical" href="{{ .url }}" />
+    <link rel="stylesheet" href="/css/fonts.css" />
+  <script defer src="/js/main.development.js"></script><link href="/css/main.development.css" rel="stylesheet"></head>
+{{- end }}

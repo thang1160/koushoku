@@ -377,6 +377,69 @@ func CreateArchive(archive *modext.Archive) (*modext.Archive, error) {
 	return modext.NewArchive(arc), nil
 }
 
+func validateRels(rels []string) (result []string) {
+	for _, v := range rels {
+		if strings.EqualFold(v, ArchiveRels.Artists) {
+			result = append(result, ArchiveRels.Artists)
+		} else if strings.EqualFold(v, ArchiveRels.Circle) {
+			result = append(result, ArchiveRels.Circle)
+		} else if strings.EqualFold(v, ArchiveRels.Magazine) {
+			result = append(result, ArchiveRels.Magazine)
+		} else if strings.EqualFold(v, ArchiveRels.Parody) {
+			result = append(result, ArchiveRels.Parody)
+		} else if strings.EqualFold(v, ArchiveRels.Tags) {
+			result = append(result, ArchiveRels.Tags)
+		}
+	}
+	sort.Strings(result)
+	return
+}
+
+type GetArchiveOptions struct {
+	Preloads      []string `form:"preload" json:"1,omitempty"`
+	IsUohhhhhhhhh bool     `form:"-" json:"2,omitempty"`
+}
+
+type GetArchiveResult struct {
+	Archive *modext.Archive `json:"archive,omitempty"`
+	Err     error           `json:"error,omitempty"`
+}
+
+func GetArchive(id int64, opts GetArchiveOptions) (result *GetArchiveResult) {
+	opts.Preloads = validateRels(opts.Preloads)
+
+	cacheKey := makeCacheKey(opts)
+	if c, err := Cache.GetWithPrefix(id, cacheKey); err == nil {
+		return c.(*GetArchiveResult)
+	}
+
+	result = &GetArchiveResult{}
+	defer func() {
+		if result.Archive != nil || result.Err != nil {
+			Cache.RemoveWithPrefix(id, cacheKey)
+			Cache.SetWithPrefix(id, cacheKey, result, 0)
+		}
+	}()
+
+	selectQueries := []QueryMod{
+		Where("id = ?", id),
+		And("published_at IS NOT NULL"),
+	}
+
+	for _, v := range opts.Preloads {
+		selectQueries = append(selectQueries, Load(v))
+	}
+
+	archive, err := models.Archives(selectQueries...).OneG()
+	if err != nil {
+		result.Err = ErrUnknown
+		return
+	}
+
+	result.Archive = modext.NewArchive(archive).LoadRels(archive)
+	return
+}
+
 type GetArchivesOptions struct {
 	Path     string `json:"0,omitempty"`
 	Title    string `json:"1,omitempty"`
@@ -421,24 +484,7 @@ func (o *GetArchivesOptions) validate() {
 		o.Offset = 0
 	}
 
-	if len(o.Preloads) > 0 {
-		var preloads []string
-		for _, preload := range o.Preloads {
-			if strings.EqualFold(preload, ArchiveRels.Artists) {
-				preloads = append(preloads, ArchiveRels.Artists)
-			} else if strings.EqualFold(preload, ArchiveRels.Circle) {
-				preloads = append(preloads, ArchiveRels.Circle)
-			} else if strings.EqualFold(preload, ArchiveRels.Magazine) {
-				preloads = append(preloads, ArchiveRels.Magazine)
-			} else if strings.EqualFold(preload, ArchiveRels.Parody) {
-				preloads = append(preloads, ArchiveRels.Parody)
-			} else if strings.EqualFold(preload, ArchiveRels.Tags) {
-				preloads = append(preloads, ArchiveRels.Tags)
-			}
-		}
-		sort.Strings(preloads)
-		o.Preloads = preloads
-	}
+	o.Preloads = validateRels(o.Preloads)
 
 	if strings.EqualFold(o.Sort, ArchiveCols.ID) {
 		o.Sort = ArchiveCols.ID
@@ -457,6 +503,7 @@ func (o *GetArchivesOptions) validate() {
 	} else {
 		o.Order = "desc"
 	}
+
 }
 
 var uohhhhhhhhh string
@@ -561,8 +608,7 @@ func (o *GetArchivesOptions) toQueries(isUohhhhhhhhh, isOr bool) (selectQueries,
 	selectQueries = append(selectQueries, Where("archive.published_at IS NOT NULL"))
 	if !isUohhhhhhhhh {
 		selectQueries = append(selectQueries,
-			Where("tag.slug != ?", uohhhhhhhhh),
-			Where("tag.slug != ?", uohhhhhhhhh2))
+			Where("COALESCE(tag.slug, '') NOT IN (?, ?)", uohhhhhhhhh, uohhhhhhhhh2))
 	}
 
 	countQueries = append(countQueries, selectQueries...)

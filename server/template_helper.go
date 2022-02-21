@@ -31,6 +31,10 @@ var helper = template.FuncMap{
 		return Config.Meta.Language
 	},
 
+	"makeSlice": func(n int16) []int {
+		return make([]int, n)
+	},
+
 	"setQuery": func(query url.Values, key string, value interface{}) string {
 		query.Set(key, fmt.Sprintf("%v", value))
 		return fmt.Sprintf("?%s", query.Encode())

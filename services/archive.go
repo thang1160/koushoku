@@ -330,12 +330,12 @@ func CreateArchive(archive *modext.Archive) (*modext.Archive, error) {
 	if archive == nil {
 		return nil, nil
 	} else if len(archive.Path) == 0 {
-		return nil, errors.New("Archive archive is required")
+		return nil, errors.New("Archive path is required")
 	}
 
 	stat, err := os.Stat(archive.Path)
 	if os.IsNotExist(err) {
-		return nil, errors.New("Archive archive does not exist")
+		return nil, errors.New("Archive does not exist")
 	}
 
 	arc, err := models.Archives(Where("archive.path = ?", archive.Path)).OneG()
@@ -349,28 +349,23 @@ func CreateArchive(archive *modext.Archive) (*modext.Archive, error) {
 		Path: archive.Path,
 
 		Title: archive.Title,
-		Slug:  archive.Slug,
+		Slug:  slug.Make(archive.Title),
 		Pages: archive.Pages,
-		Size:  archive.Size,
+		Size:  FormatBytes(stat.Size()),
 	}
 
-	if len(arc.Slug) == 0 {
-		arc.Slug = slug.Make(arc.Title)
+	f, err := zip.OpenReader(arc.Path)
+	if err != nil {
+		return nil, err
 	}
 
-	if arc.Pages == 0 {
-		f, err := zip.OpenReader(arc.Path)
-		if err != nil {
-			return nil, err
-		}
-
-		arc.Pages = int16(len(f.File))
-		f.Close()
+	arc.Pages = int16(len(f.File))
+	if arc.Pages > 0 {
+		d := f.File[0].FileInfo()
+		arc.CreatedAt = d.ModTime()
+		arc.UpdatedAt = arc.CreatedAt
 	}
-
-	if len(arc.Size) == 0 {
-		arc.Size = FormatBytes(stat.Size())
-	}
+	f.Close()
 
 	if err := arc.InsertG(boil.Infer()); err != nil {
 		return nil, err
@@ -656,7 +651,6 @@ func PublishArchive(id int64) (*modext.Archive, error) {
 	}
 
 	archive.PublishedAt = null.TimeFrom(time.Now().UTC())
-
 	if err := archive.UpdateG(boil.Infer()); err != nil {
 		return nil, ErrUnknown
 	}
@@ -666,6 +660,7 @@ func PublishArchive(id int64) (*modext.Archive, error) {
 }
 
 func PublishArchives() error {
+	// TODO: Purge cache
 	return models.Archives(Where("published_at IS NULL")).
 		UpdateAllG(models.M{"published_at": null.TimeFrom(time.Now().UTC())})
 }
@@ -680,7 +675,6 @@ func UnpublishArchive(id int64) (*modext.Archive, error) {
 	}
 
 	archive.PublishedAt.Valid = false
-
 	if err := archive.UpdateG(boil.Infer()); err != nil {
 		return nil, ErrUnknown
 	}
@@ -690,6 +684,7 @@ func UnpublishArchive(id int64) (*modext.Archive, error) {
 }
 
 func UnpublishArchives() error {
+	// TODO: Purge cache
 	return models.Archives(Where("published_at IS NOT NULL")).
 		UpdateAllG(models.M{"published_at": null.NewTime(time.Now(), false)})
 }
@@ -714,5 +709,6 @@ func DeleteArchive(id int64) error {
 
 func DeleteArchives() error {
 	// TODO: Purge cache
+	// TODO: Remove symlinks
 	return models.Archives().DeleteAllG()
 }

@@ -3,12 +3,12 @@ package services
 import (
 	"context"
 	"database/sql"
-	"errors"
 	"log"
 	"strings"
 	"time"
 
 	. "koushoku/cache"
+	"koushoku/errs"
 
 	"koushoku/models"
 	"koushoku/modext"
@@ -22,9 +22,9 @@ func CreateCircle(name string) (*modext.Circle, error) {
 	name = strings.Title(strings.TrimSpace(name))
 
 	if len(name) == 0 {
-		return nil, errors.New("Circle name is required")
+		return nil, errs.ErrCircleNameRequired
 	} else if len(name) > 128 {
-		return nil, errors.New("Circle name is too long")
+		return nil, errs.ErrCircleNameTooLong
 	}
 
 	slug := slug.Make(name)
@@ -37,11 +37,11 @@ func CreateCircle(name string) (*modext.Circle, error) {
 		}
 		if err = circle.InsertG(boil.Infer()); err != nil {
 			log.Println(err)
-			return nil, err
+			return nil, errs.ErrUnknown
 		}
 	} else if err != nil {
 		log.Println(err)
-		return nil, err
+		return nil, errs.ErrUnknown
 	}
 
 	return modext.NewCircle(circle), nil
@@ -51,9 +51,10 @@ func GetCircle(slug string) (*modext.Circle, error) {
 	circle, err := models.Circles(Where("slug = ?", slug)).OneG()
 	if err != nil {
 		if err == sql.ErrNoRows {
-			return nil, errors.New("Circle does not exist")
+			return nil, errs.ErrCircleNotFound
 		}
-		return nil, err
+		log.Println(err)
+		return nil, errs.ErrUnknown
 	}
 	return modext.NewCircle(circle), nil
 }
@@ -106,14 +107,14 @@ func GetCircles(opts GetCirclesOptions) (result *GetCirclesResult) {
 	err := models.Circles(q...).BindG(context.Background(), &result.Circles)
 	if err != nil {
 		log.Println(err)
-		result.Err = ErrUnknown
+		result.Err = errs.ErrUnknown
 		return
 	}
 
 	count, err := models.Circles().CountG()
 	if err != nil {
 		log.Println(err)
-		result.Err = ErrUnknown
+		result.Err = errs.ErrUnknown
 		return
 	}
 

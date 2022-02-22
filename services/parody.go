@@ -3,12 +3,12 @@ package services
 import (
 	"context"
 	"database/sql"
-	"errors"
 	"log"
 	"strings"
 	"time"
 
 	. "koushoku/cache"
+	"koushoku/errs"
 
 	"koushoku/models"
 	"koushoku/modext"
@@ -22,9 +22,9 @@ func CreateParody(name string) (*modext.Parody, error) {
 	name = strings.Title(strings.TrimSpace(name))
 
 	if len(name) == 0 {
-		return nil, errors.New("Parody name is required")
+		return nil, errs.ErrParodyNameRequired
 	} else if len(name) > 128 {
-		return nil, errors.New("Parody name is too long")
+		return nil, errs.ErrParodyNameTooLong
 	}
 
 	slug := slug.Make(name)
@@ -37,11 +37,11 @@ func CreateParody(name string) (*modext.Parody, error) {
 		}
 		if err = parody.InsertG(boil.Infer()); err != nil {
 			log.Println(err)
-			return nil, err
+			return nil, errs.ErrUnknown
 		}
 	} else if err != nil {
 		log.Println(err)
-		return nil, err
+		return nil, errs.ErrUnknown
 	}
 
 	return modext.NewParody(parody), nil
@@ -51,9 +51,10 @@ func GetParody(slug string) (*modext.Parody, error) {
 	parody, err := models.Parodies(Where("slug = ?", slug)).OneG()
 	if err != nil {
 		if err == sql.ErrNoRows {
-			return nil, errors.New("Parody does not exist")
+			return nil, errs.ErrParodyNotFound
 		}
-		return nil, err
+		log.Println(err)
+		return nil, errs.ErrUnknown
 	}
 	return modext.NewParody(parody), nil
 }
@@ -106,14 +107,14 @@ func GetParodies(opts GetParodiesOptions) (result *GetParodiesResult) {
 	err := models.Parodies(q...).BindG(context.Background(), &result.Parodies)
 	if err != nil {
 		log.Println(err)
-		result.Err = ErrUnknown
+		result.Err = errs.ErrUnknown
 		return
 	}
 
 	count, err := models.Parodies().CountG()
 	if err != nil {
 		log.Println(err)
-		result.Err = ErrUnknown
+		result.Err = errs.ErrUnknown
 		return
 	}
 

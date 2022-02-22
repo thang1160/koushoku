@@ -3,12 +3,12 @@ package services
 import (
 	"context"
 	"database/sql"
-	"errors"
 	"log"
 	"strings"
 	"time"
 
 	. "koushoku/cache"
+	"koushoku/errs"
 
 	"koushoku/models"
 	"koushoku/modext"
@@ -23,9 +23,9 @@ func CreateArtist(name string) (*modext.Artist, error) {
 	name = strings.Title(strings.TrimSpace(name))
 
 	if len(name) == 0 {
-		return nil, errors.New("Artist name is required")
+		return nil, errs.ErrArtistNameRequired
 	} else if len(name) > 128 {
-		return nil, errors.New("Artist name must be at most 128 characters")
+		return nil, errs.ErrArtistNameTooLong
 	}
 
 	slug := slug.Make(name)
@@ -38,11 +38,11 @@ func CreateArtist(name string) (*modext.Artist, error) {
 		}
 		if err = artist.InsertG(boil.Infer()); err != nil {
 			log.Println(err)
-			return nil, err
+			return nil, errs.ErrUnknown
 		}
 	} else if err != nil {
 		log.Println(err)
-		return nil, err
+		return nil, errs.ErrUnknown
 	}
 
 	return modext.NewArtist(artist), nil
@@ -52,9 +52,10 @@ func GetArtist(slug string) (*modext.Artist, error) {
 	artist, err := models.Artists(Where("slug = ?", slug)).OneG()
 	if err != nil {
 		if err == sql.ErrNoRows {
-			return nil, errors.New("Artist does not exist")
+			return nil, errs.ErrArtistNotFound
 		}
-		return nil, err
+		log.Println(err)
+		return nil, errs.ErrUnknown
 	}
 	return modext.NewArtist(artist), nil
 }
@@ -108,14 +109,14 @@ func GetArtists(opts GetArtistsOptions) (result *GetArtistsResult) {
 	err := models.Artists(q...).BindG(context.Background(), &result.Artists)
 	if err != nil {
 		log.Println(err)
-		result.Err = ErrUnknown
+		result.Err = errs.ErrUnknown
 		return
 	}
 
 	count, err := models.Artists().CountG()
 	if err != nil {
 		log.Println(err)
-		result.Err = ErrUnknown
+		result.Err = errs.ErrUnknown
 		return
 	}
 

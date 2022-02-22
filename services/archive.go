@@ -5,7 +5,6 @@ import (
 	"bufio"
 	"bytes"
 	"database/sql"
-	"errors"
 	"fmt"
 	"io"
 	"io/fs"
@@ -21,6 +20,7 @@ import (
 	. "koushoku/cache"
 	. "koushoku/config"
 
+	"koushoku/errs"
 	"koushoku/models"
 	"koushoku/modext"
 
@@ -34,11 +34,6 @@ import (
 var (
 	ArchiveCols = models.ArchiveColumns
 	ArchiveRels = models.ArchiveRels
-)
-
-var (
-	ErrUnknown         = errors.New("Unknown error")
-	ErrArchiveNotFound = errors.New("Archive not found")
 )
 
 func checkArchiveThumbnail(id, i, width int, w http.ResponseWriter, r *http.Request) (string, bool) {
@@ -283,7 +278,8 @@ func refreshArchiveRels(arc *models.Archive, archive *modext.Archive) error {
 			Slug: circle.Slug,
 			Name: circle.Name,
 		}); err != nil {
-			return err
+			log.Println(err)
+			return errs.ErrUnknown
 		}
 	}
 
@@ -297,7 +293,8 @@ func refreshArchiveRels(arc *models.Archive, archive *modext.Archive) error {
 			Slug: magazine.Slug,
 			Name: magazine.Name,
 		}); err != nil {
-			return err
+			log.Println(err)
+			return errs.ErrUnknown
 		}
 	}
 
@@ -311,7 +308,8 @@ func refreshArchiveRels(arc *models.Archive, archive *modext.Archive) error {
 			Slug: parody.Slug,
 			Name: parody.Name,
 		}); err != nil {
-			return err
+			log.Println(err)
+			return errs.ErrUnknown
 		}
 	}
 
@@ -328,7 +326,8 @@ func refreshArchiveRels(arc *models.Archive, archive *modext.Archive) error {
 		})
 	}
 	if err := arc.SetArtistsG(false, artists...); err != nil {
-		return err
+		log.Println(err)
+		return errs.ErrUnknown
 	}
 
 	var tags []*models.Tag
@@ -344,7 +343,8 @@ func refreshArchiveRels(arc *models.Archive, archive *modext.Archive) error {
 		})
 	}
 	if err := arc.SetTagsG(false, tags...); err != nil {
-		return err
+		log.Println(err)
+		return errs.ErrUnknown
 	}
 	return nil
 }
@@ -353,17 +353,19 @@ func CreateArchive(archive *modext.Archive) (*modext.Archive, error) {
 	if archive == nil {
 		return nil, nil
 	} else if len(archive.Path) == 0 {
-		return nil, errors.New("Archive path is required")
+		return nil, errs.ErrArchivePathRequired
 	}
 
 	stat, err := os.Stat(archive.Path)
 	if os.IsNotExist(err) {
-		return nil, errors.New("Archive does not exist")
+		log.Println(err)
+		return nil, errs.ErrArchiveNotFound
 	}
 
 	arc, err := models.Archives(Where("archive.path = ?", archive.Path)).OneG()
 	if err != nil && err != sql.ErrNoRows {
-		return nil, err
+		log.Println(err)
+		return nil, errs.ErrUnknown
 	} else if arc != nil {
 		return modext.NewArchive(arc), nil
 	}
@@ -379,7 +381,8 @@ func CreateArchive(archive *modext.Archive) (*modext.Archive, error) {
 
 	f, err := zip.OpenReader(arc.Path)
 	if err != nil {
-		return nil, err
+		log.Println(err)
+		return nil, errs.ErrUnknown
 	}
 
 	arc.Pages = int16(len(f.File))
@@ -391,9 +394,11 @@ func CreateArchive(archive *modext.Archive) (*modext.Archive, error) {
 	f.Close()
 
 	if err := arc.InsertG(boil.Infer()); err != nil {
-		return nil, err
+		log.Println(err)
+		return nil, errs.ErrUnknown
 	} else if err := refreshArchiveRels(arc, archive); err != nil {
-		return nil, err
+		log.Println(err)
+		return nil, errs.ErrUnknown
 	}
 
 	// TODO: Purge cache
@@ -454,7 +459,12 @@ func GetArchive(id int64, opts GetArchiveOptions) (result *GetArchiveResult) {
 
 	archive, err := models.Archives(selectQueries...).OneG()
 	if err != nil {
-		result.Err = ErrUnknown
+		if err == sql.ErrNoRows {
+			result.Err = errs.ErrArchiveNotFound
+			return
+		}
+		log.Println(err)
+		result.Err = errs.ErrUnknown
 		return
 	}
 
@@ -639,7 +649,7 @@ func getArchives(or bool, opts GetArchivesOptions) (result *GetArchivesResult) {
 		prefix = prefixGlobalOr
 	}
 
-	cacheKey := fmt.Sprintf("%s%v", makeCacheKey(opts))
+	cacheKey := makeCacheKey(opts)
 	if c, err := Cache.GetWithPrefix(prefix, cacheKey); err == nil {
 		return c.(*GetArchivesResult)
 	}
@@ -656,14 +666,14 @@ func getArchives(or bool, opts GetArchivesOptions) (result *GetArchivesResult) {
 	archives, err := models.Archives(selectQueries...).AllG()
 	if err != nil {
 		log.Println(err)
-		result.Err = ErrUnknown
+		result.Err = errs.ErrUnknown
 		return
 	}
 
 	count, err := models.Archives(countQueries...).AllG()
 	if err != nil {
 		log.Println(err)
-		result.Err = ErrUnknown
+		result.Err = errs.ErrUnknown
 		return
 	}
 
@@ -689,14 +699,16 @@ func PublishArchive(id int64) (*modext.Archive, error) {
 	archive, err := models.FindArchiveG(id)
 	if err != nil {
 		if err == sql.ErrNoRows {
-			return nil, ErrArchiveNotFound
+			return nil, errs.ErrArchiveNotFound
 		}
-		return nil, ErrUnknown
+		log.Println(err)
+		return nil, errs.ErrUnknown
 	}
 
 	archive.PublishedAt = null.TimeFrom(time.Now().UTC())
 	if err := archive.UpdateG(boil.Infer()); err != nil {
-		return nil, ErrUnknown
+		log.Println(err)
+		return nil, errs.ErrUnknown
 	}
 
 	// TODO: Purge cache
@@ -713,14 +725,16 @@ func UnpublishArchive(id int64) (*modext.Archive, error) {
 	archive, err := models.FindArchiveG(id)
 	if err != nil {
 		if err == sql.ErrNoRows {
-			return nil, ErrArchiveNotFound
+			return nil, errs.ErrArchiveNotFound
 		}
-		return nil, ErrUnknown
+		log.Println(err)
+		return nil, errs.ErrUnknown
 	}
 
 	archive.PublishedAt.Valid = false
 	if err := archive.UpdateG(boil.Infer()); err != nil {
-		return nil, ErrUnknown
+		log.Println(err)
+		return nil, errs.ErrUnknown
 	}
 
 	// TODO: Purge cache
@@ -737,13 +751,15 @@ func DeleteArchive(id int64) error {
 	archive, err := models.FindArchiveG(id)
 	if err != nil {
 		if err == sql.ErrNoRows {
-			return ErrArchiveNotFound
+			return errs.ErrArchiveNotFound
 		}
-		return ErrUnknown
+		log.Println(err)
+		return errs.ErrUnknown
 	}
 
 	if err := archive.DeleteG(); err != nil {
-		return ErrUnknown
+		log.Println(err)
+		return errs.ErrUnknown
 	}
 
 	// TODO: Purge cache
@@ -752,7 +768,11 @@ func DeleteArchive(id int64) error {
 }
 
 func DeleteArchives() error {
+	if err := models.Archives().DeleteAllG(); err != nil {
+		log.Println(err)
+		return errs.ErrUnknown
+	}
 	// TODO: Purge cache
 	// TODO: Remove symlinks
-	return models.Archives().DeleteAllG()
+	return nil
 }

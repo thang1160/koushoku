@@ -58,6 +58,12 @@ func Archive(c *server.Context) {
 		return
 	}
 
+	slug := c.Param("slug")
+	if !strings.EqualFold(slug, result.Archive.Slug) {
+		c.Redirect(http.StatusFound, fmt.Sprintf("/archive/%d/%s", result.Archive.ID, result.Archive.Slug))
+		return
+	}
+
 	c.SetData("archive", result.Archive)
 	c.HTML(http.StatusOK, "archive.html")
 }

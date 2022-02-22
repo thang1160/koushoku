@@ -1,0 +1,75 @@
+{{- define "reader_pagination" }}
+  <nav role="Reader">
+    {{- $prev := .pageNum }}
+    {{- if gt $prev 1 }}
+      {{- $prev = (dec $prev) }}
+    {{- end }}
+    <a href="/archive/{{ .archive.ID }}/{{ .archive.Slug }}/1" class="first">
+      <svg
+        xmlns="http://www.w3.org/2000/svg"
+        width="20"
+        height="20"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="3"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      >
+        <polyline points="11 17 6 12 11 7"></polyline>
+        <polyline points="18 17 13 12 18 7"></polyline>
+      </svg>
+    </a>
+    <a href="/archive/{{ .archive.ID }}/{{ .archive.Slug }}/{{ $prev }}" class="prev">
+      <svg
+        xmlns="http://www.w3.org/2000/svg"
+        width="20"
+        height="20"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="3"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      >
+        <polyline points="15 18 9 12 15 6"></polyline>
+      </svg>
+    </a>
+    <span><span class="current">{{ .pageNum }}</span> of <span class="total">{{ .archive.Pages }}</span></span>
+    {{- $next := .pageNum }}
+    {{- if lt $next .archive.Pages }}
+      {{- $next = (inc $next) }}
+    {{- end }}
+    <a href="/archive/{{ .archive.ID }}/{{ .archive.Slug }}/{{ $next }}" class="next">
+      <svg
+        xmlns="http://www.w3.org/2000/svg"
+        width="24"
+        height="24"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="3"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      >
+        <polyline points="9 18 15 12 9 6"></polyline>
+      </svg>
+    </a>
+    <a href="/archive/{{ .archive.ID }}/{{ .archive.Slug }}/{{ .archive.Pages }}" class="last">
+      <svg
+        xmlns="http://www.w3.org/2000/svg"
+        width="24"
+        height="24"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="3"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      >
+        <polyline points="13 17 18 12 13 7"></polyline>
+        <polyline points="6 17 11 12 6 7"></polyline>
+      </svg>
+    </a>
+  </nav>
+{{- end }}

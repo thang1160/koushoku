@@ -7,6 +7,8 @@ func Init() {
 	server.GET("/search", Search)
 
 	server.GET("/archive/:id/:slug", Archive)
+	server.GET("/archive/:id/:slug/:pageNum", ReadArchive)
+
 	server.GET("/data/:id/:pageNum", ServeArchiveFile)
 	server.GET("/data/:id/:pageNum/*width", ServeArchiveFile)
 

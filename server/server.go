@@ -91,7 +91,7 @@ func Start() {
 }
 
 func noRoute(c *Context) {
-	//c.HTML(http.StatusNotFound, "error.html")
+	c.HTML(http.StatusNotFound, "error.html")
 }
 
 func (h Handler) wrap() gin.HandlerFunc {

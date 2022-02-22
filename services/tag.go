@@ -123,6 +123,21 @@ func GetTags(opts GetTagsOptions) (result *GetTagsResult) {
 	return
 }
 
+func GetTagCount() (int64, error) {
+	if c, err := Cache.Get("tag-count"); err == nil {
+		return c.(int64), nil
+	}
+
+	count, err := models.Tags().CountG()
+	if err != nil {
+		log.Println(err)
+		return 0, errs.ErrUnknown
+	}
+
+	Cache.Set("tag-count", count, time.Hour*24*7)
+	return count, nil
+}
+
 var isTagValidMap = QueryMapCache{
 	Map: make(map[string]bool),
 }

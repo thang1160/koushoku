@@ -1,10 +1,18 @@
 package controllers
 
-import "koushoku/server"
+import (
+	"net/http"
+
+	"koushoku/server"
+	"koushoku/services"
+)
 
 func Init() {
 	server.GET("/", Index)
 	server.GET("/search", Search)
+	server.GET("/stats",
+		server.WithName("Stats"),
+		Stats)
 
 	server.GET("/archive/:id/:slug", Archive)
 	server.GET("/archive/:id/:slug/:pageNum", ReadArchive)
@@ -20,4 +28,9 @@ func Init() {
 	server.GET("/tags/:slug", Tag)
 	server.GET("/magazines", Magazines)
 	server.GET("/magazines/:slug", Magazine)
+}
+
+func Stats(c *server.Context) {
+	c.SetData("stats", services.GetStats())
+	c.HTML(http.StatusOK, "stats.html")
 }

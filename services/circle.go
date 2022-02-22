@@ -122,6 +122,21 @@ func GetCircles(opts GetCirclesOptions) (result *GetCirclesResult) {
 	return
 }
 
+func GetCircleCount() (int64, error) {
+	if c, err := Cache.Get("circle-count"); err == nil {
+		return c.(int64), nil
+	}
+
+	count, err := models.Circles().CountG()
+	if err != nil {
+		log.Println(err)
+		return 0, errs.ErrUnknown
+	}
+
+	Cache.Set("circle-count", count, time.Hour*24*7)
+	return count, nil
+}
+
 var isCircleValidMap = QueryMapCache{
 	Map: make(map[string]bool),
 }

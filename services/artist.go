@@ -124,6 +124,21 @@ func GetArtists(opts GetArtistsOptions) (result *GetArtistsResult) {
 	return
 }
 
+func GetArtistCount() (int64, error) {
+	if c, err := Cache.Get("artist-count"); err == nil {
+		return c.(int64), nil
+	}
+
+	count, err := models.Artists().CountG()
+	if err != nil {
+		log.Println(err)
+		return 0, errs.ErrUnknown
+	}
+
+	Cache.Set("artist-count", count, time.Hour*24*7)
+	return count, nil
+}
+
 var isArtistValidMap = QueryMapCache{
 	Map: make(map[string]bool),
 }

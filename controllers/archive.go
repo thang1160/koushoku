@@ -28,3 +28,36 @@ func ServeArchiveFile(c *server.Context) {
 
 	services.ServeArchiveFile(id, pageNum-1, width, c.Writer, c.Request)
 }
+
+func Archive(c *server.Context) {
+	id, err := c.ParamInt64("id")
+	if err != nil {
+		c.HTML(http.StatusInternalServerError, "error.html")
+		return
+	}
+
+	if strings.EqualFold(c.Query("download"), "true") {
+		services.ServeArchive(id, c.Writer, c.Request)
+		return
+	}
+
+	opts := services.GetArchiveOptions{
+		Preloads: []string{
+			services.ArchiveRels.Artists,
+			services.ArchiveRels.Circle,
+			services.ArchiveRels.Magazine,
+			services.ArchiveRels.Parody,
+			services.ArchiveRels.Tags,
+		},
+		IsUohhhhhhhhh: c.IsUohhhhhhhhh(),
+	}
+	result := services.GetArchive(id, opts)
+	if result.Err != nil {
+		c.SetData("error", result.Err)
+		c.HTML(http.StatusInternalServerError, "error.html")
+		return
+	}
+
+	c.SetData("archive", result.Archive)
+	c.HTML(http.StatusOK, "archive.html")
+}

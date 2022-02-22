@@ -5,6 +5,8 @@ import "koushoku/server"
 func Init() {
 	server.GET("/", Index)
 	server.GET("/search", Search)
+
+	server.GET("/archive/:id/:slug", Archive)
 	server.GET("/data/:id/:pageNum", ServeArchiveFile)
 	server.GET("/data/:id/:pageNum/*width", ServeArchiveFile)
 

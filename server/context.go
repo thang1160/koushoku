@@ -1,7 +1,6 @@
 package server
 
 import (
-	"fmt"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -74,19 +73,8 @@ func (c *Context) Cache(code int, name string) {
 	}
 }
 
-var getSecretKey func() string
-var getSecretExpectedValue func() string
-
-func (c *Context) IsUohhhhhhhhh() bool {
-	if getSecretKey == nil || getSecretExpectedValue == nil {
-		return false
-	}
-	v, _ := c.Cookie(getSecretKey())
-	return v == getSecretExpectedValue()
-}
-
 func (c *Context) cacheKey() string {
-	return fmt.Sprintf("%s%v", c.GetURL(), c.IsUohhhhhhhhh())
+	return c.GetURL()
 }
 
 func (c *Context) IsCached(name string) bool {

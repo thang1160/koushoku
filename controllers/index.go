@@ -31,7 +31,7 @@ func Index(c *server.Context) {
 			services.ArchiveRels.Magazine,
 		},
 	}
-	result := services.GetArchives(c.IsUohhhhhhhhh(), opts)
+	result := services.GetArchives(opts)
 	if result.Err != nil {
 		c.SetData("error", result.Err)
 		c.HTML(http.StatusInternalServerError, "error.html")
@@ -80,8 +80,6 @@ func Search(c *server.Context) {
 	}
 
 	if len(q.Search) > 0 {
-		ok := c.IsUohhhhhhhhh()
-
 		if services.IsArtistValid(q.Search) {
 			opts.Artists = []string{q.Search}
 		}
@@ -94,13 +92,13 @@ func Search(c *server.Context) {
 			opts.Parody = q.Search
 		}
 
-		if services.IsTagValid(q.Search, ok) {
+		if services.IsTagValid(q.Search) {
 			opts.Tags = []string{q.Search}
 		} else {
 			arr := strings.Split(q.Search, " ")
 			if len(arr) > 1 {
 				for _, v := range arr {
-					if services.IsTagValid(v, ok) {
+					if services.IsTagValid(v) {
 						opts.Tags = append(opts.Tags, v)
 					}
 				}
@@ -114,7 +112,7 @@ func Search(c *server.Context) {
 		}
 	}
 
-	result := services.GetArchives(c.IsUohhhhhhhhh(), opts)
+	result := services.GetArchives(opts)
 	if result.Err != nil {
 		c.SetData("error", result.Err)
 		c.HTML(http.StatusInternalServerError, "error.html")

@@ -48,12 +48,7 @@ func CreateTag(name string) (*modext.Tag, error) {
 	return modext.NewTag(tag), nil
 }
 
-func GetTag(slug string, isUohhhhhhhhh bool) (*modext.Tag, error) {
-	if !isUohhhhhhhhh && (strings.EqualFold(slug, uohhhhhhhhh) ||
-		strings.EqualFold(slug, uohhhhhhhhh2)) {
-		return nil, errors.New("Tag does not exist")
-	}
-
+func GetTag(slug string) (*modext.Tag, error) {
 	tag, err := models.Tags(Where("slug = ?", slug)).OneG()
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -77,12 +72,12 @@ type GetTagsResult struct {
 
 const prefixgt = "tags"
 
-func GetTags(isUohhhhhhhhh bool, opts GetTagsOptions) (result *GetTagsResult) {
+func GetTags(opts GetTagsOptions) (result *GetTagsResult) {
 	if opts.Offset < 0 {
 		opts.Offset = 0
 	}
 
-	cacheKey := fmt.Sprintf("%s%v", makeCacheKey(opts), isUohhhhhhhhh)
+	cacheKey := fmt.Sprintf("%s%v", makeCacheKey(opts))
 	if c, err := Cache.GetWithPrefix(prefixgt, cacheKey); err == nil {
 		return c.(*GetTagsResult)
 	}
@@ -101,12 +96,6 @@ func GetTags(isUohhhhhhhhh bool, opts GetTagsOptions) (result *GetTagsResult) {
 		InnerJoin("archive ON archive.id = at.archive_id"),
 		GroupBy("tag.id"),
 		OrderBy("tag.name ASC"),
-	}
-
-	if !isUohhhhhhhhh {
-		q = append(q,
-			Where("tag.slug != ?", uohhhhhhhhh),
-			Where("tag.slug != ?", uohhhhhhhhh2))
 	}
 
 	if opts.Limit > 0 {
@@ -138,7 +127,7 @@ var isTagValidMap = QueryMapCache{
 	Map: make(map[string]bool),
 }
 
-func IsTagValid(str string, isUohhhhhhhhh bool) (isValid bool) {
+func IsTagValid(str string) (isValid bool) {
 	str = slug.Make(str)
 
 	isTagValidMap.RLock()
@@ -149,7 +138,7 @@ func IsTagValid(str string, isUohhhhhhhhh bool) (isValid bool) {
 		return v
 	}
 
-	result := GetTags(isUohhhhhhhhh, GetTagsOptions{})
+	result := GetTags(GetTagsOptions{})
 	if result.Err != nil {
 		return
 	}

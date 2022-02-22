@@ -5,7 +5,6 @@ import (
 	"bufio"
 	"bytes"
 	"database/sql"
-	"encoding/base64"
 	"errors"
 	"fmt"
 	"io"
@@ -420,8 +419,7 @@ func validateRels(rels []string) (result []string) {
 }
 
 type GetArchiveOptions struct {
-	Preloads      []string `form:"preload" json:"1,omitempty"`
-	IsUohhhhhhhhh bool     `form:"-" json:"2,omitempty"`
+	Preloads []string `form:"preload" json:"1,omitempty"`
 }
 
 type GetArchiveResult struct {
@@ -530,24 +528,7 @@ func (o *GetArchivesOptions) validate() {
 
 }
 
-var uohhhhhhhhh string
-var uohhhhhhhhh2 string
-
-func init() {
-	buf, err := base64.StdEncoding.DecodeString("bG9saQ==")
-	if err != nil {
-		log.Fatalln(err)
-	}
-	uohhhhhhhhh = string(buf)
-
-	buf, err = base64.StdEncoding.DecodeString("c2hvdGE=")
-	if err != nil {
-		log.Fatalln(err)
-	}
-	uohhhhhhhhh2 = string(buf)
-}
-
-func (o *GetArchivesOptions) toQueries(isUohhhhhhhhh, isOr bool) (selectQueries, countQueries []QueryMod) {
+func (o *GetArchivesOptions) toQueries(isOr bool) (selectQueries, countQueries []QueryMod) {
 	selectQueries = append(selectQueries, GroupBy("archive.id"))
 	countQueries = append(countQueries, Select("1"))
 
@@ -605,13 +586,11 @@ func (o *GetArchivesOptions) toQueries(isUohhhhhhhhh, isOr bool) (selectQueries,
 		queries = append(queries, fmt.Sprintf("(%s)", strings.Join(q, " OR ")))
 	}
 
-	if len(o.Tags) > 0 || !isUohhhhhhhhh {
+	if len(o.Tags) > 0 {
 		selectQueries = append(selectQueries,
 			InnerJoin("archive_tags at ON at.archive_id = archive.id"),
 			InnerJoin("tag ON tag.id = at.tag_id"))
-	}
 
-	if len(o.Tags) > 0 {
 		var q []string
 		for _, tag := range o.Tags {
 			q = append(q, "tag.slug = ?")
@@ -630,11 +609,6 @@ func (o *GetArchivesOptions) toQueries(isUohhhhhhhhh, isOr bool) (selectQueries,
 	}
 
 	selectQueries = append(selectQueries, Where("archive.published_at IS NOT NULL"))
-	if !isUohhhhhhhhh {
-		selectQueries = append(selectQueries,
-			Where("COALESCE(tag.slug, '') NOT IN (?, ?)", uohhhhhhhhh, uohhhhhhhhh2))
-	}
-
 	countQueries = append(countQueries, selectQueries...)
 
 	selectQueries = append(selectQueries,
@@ -657,7 +631,7 @@ const (
 	prefixGlobalOr  = "global-or"
 )
 
-func getArchives(isUohhhhhhhhh, or bool, opts GetArchivesOptions) (result *GetArchivesResult) {
+func getArchives(or bool, opts GetArchivesOptions) (result *GetArchivesResult) {
 	opts.validate()
 
 	prefix := prefixGlobalAnd
@@ -665,7 +639,7 @@ func getArchives(isUohhhhhhhhh, or bool, opts GetArchivesOptions) (result *GetAr
 		prefix = prefixGlobalOr
 	}
 
-	cacheKey := fmt.Sprintf("%s%v", makeCacheKey(opts), isUohhhhhhhhh)
+	cacheKey := fmt.Sprintf("%s%v", makeCacheKey(opts))
 	if c, err := Cache.GetWithPrefix(prefix, cacheKey); err == nil {
 		return c.(*GetArchivesResult)
 	}
@@ -678,7 +652,7 @@ func getArchives(isUohhhhhhhhh, or bool, opts GetArchivesOptions) (result *GetAr
 		}
 	}()
 
-	selectQueries, countQueries := opts.toQueries(isUohhhhhhhhh, or)
+	selectQueries, countQueries := opts.toQueries(or)
 	archives, err := models.Archives(selectQueries...).AllG()
 	if err != nil {
 		log.Println(err)
@@ -703,12 +677,12 @@ func getArchives(isUohhhhhhhhh, or bool, opts GetArchivesOptions) (result *GetAr
 	return
 }
 
-func GetArchives(isUohhhhhhhhh bool, opts GetArchivesOptions) (result *GetArchivesResult) {
-	return getArchives(isUohhhhhhhhh, false, opts)
+func GetArchives(opts GetArchivesOptions) (result *GetArchivesResult) {
+	return getArchives(false, opts)
 }
 
-func SearchArchives(isUohhhhhhhhh bool, opts GetArchivesOptions) (result *GetArchivesResult) {
-	return getArchives(isUohhhhhhhhh, true, opts)
+func SearchArchives(opts GetArchivesOptions) (result *GetArchivesResult) {
+	return getArchives(true, opts)
 }
 
 func PublishArchive(id int64) (*modext.Archive, error) {

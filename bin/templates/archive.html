@@ -1,0 +1,110 @@
+{{- define "archive.html" }}
+  <!DOCTYPE html>
+  <html lang="{{ language }}">
+    {{- template "head" . }}
+    <body>
+      {{- template "header" . }}
+      {{- $archive := .archive }}
+      <main id="archive">
+        <aside>
+          <figure class="thumbnail">
+            <a href="/archive/{{ .archive.ID }}/{{ .archive.Slug }}">
+              <img src="/data/{{ .archive.ID }}/1/896.jpg" loading="lazy" />
+            </a>
+          </figure>
+          <div class="metadata">
+            <h1 class="title">{{ .archive.Title }}</h1>
+            <table>
+              <tbody>
+                {{- if .archive.Artists }}
+                  <tr class="artists">
+                    <td>Artists</td>
+                    <td>
+                      {{- range $i, $v := .archive.Artists }}
+                        {{- if $i }},{{- end }}
+                        <a href="/artists/{{ .Slug }}">{{ .Name }}</a>
+                      {{- end }}
+                    </td>
+                  </tr>
+                {{- end }}
+                {{- if .archive.Circle }}
+                  <tr class="circle">
+                    <td>Circle</td>
+                    <td>
+                      <a href="/circles/{{ .archive.Circle.Slug }}">{{ .archive.Circle.Name }}</a>
+                    </td>
+                  </tr>
+                {{- end }}
+                {{- if .archive.Magazine }}
+                  <tr class="magazine">
+                    <td>Magazine</td>
+                    <td>
+                      <a href="/magazines/{{ .archive.Magazine.Slug }}">{{ .archive.Magazine.Name }}</a>
+                    </td>
+                  </tr>
+                {{- end }}
+                {{- if .archive.Parody }}
+                  <tr class="parody">
+                    <td>Parody</td>
+                    <td>
+                      <a href="/parodies/{{ .archive.Parody.Slug }}">{{ .archive.Parody.Name }}</a>
+                    </td>
+                  </tr>
+                {{- end }}
+                {{- if .archive.Tags }}
+                  <tr class="tags">
+                    <td>Tags</td>
+                    <td>
+                      {{- range $i, $v := .archive.Tags }}
+                        {{- if $i }},{{- end }}
+                        <a href="/tags/{{ .Slug }}">{{ .Name }}</a>
+                      {{- end }}
+                    </td>
+                  </tr>
+                {{- end }}
+                <tr class="pages">
+                  <td>Pages</td>
+                  <td>{{ .archive.Pages }}</td>
+                </tr>
+                <tr class="size">
+                  <td>Size</td>
+                  <td>{{ .archive.Size }}</td>
+                </tr>
+              </tbody>
+            </table>
+            <a class="download" href="?download=true" rel="nofollow" download>
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="20"
+                height="20"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2.5"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                <polyline points="7 10 12 15 17 10"></polyline>
+                <line x1="12" y1="15" x2="12" y2="3"></line>
+              </svg>
+              <span>Download</span>
+            </a>
+          </div>
+        </aside>
+        <div class="pages">
+          {{- $pages := makeSlice .archive.Pages }}
+          {{- range $i, $v := $pages }}
+            {{- $pageNum := inc $i }}
+            <div class="page">
+              <a href="/archive/{{ $archive.ID }}/{{ $archive.Slug }}/{{ $pageNum }}">
+                <img src="/data/{{ $archive.ID }}/{{ inc $i }}/384.jpg" loading="lazy" />
+              </a>
+            </div>
+          {{- end }}
+        </div>
+      </main>
+      {{- template "footer" . }}
+    </body>
+  </html>
+{{- end }}

@@ -3,8 +3,9 @@ koushoku.ini
 koushoku.yaml
 bin/*
 !bin/templates
-#!bin/assets
-#!bin/blacklist.txt
+!bin/assets
+!bin/blacklist.txt
+bin/assets/**/*.development.*
 bin/assets/favicon.ico
 build
 dist

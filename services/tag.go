@@ -3,13 +3,12 @@ package services
 import (
 	"context"
 	"database/sql"
-	"errors"
-	"fmt"
 	"log"
 	"strings"
 	"time"
 
 	. "koushoku/cache"
+	"koushoku/errs"
 
 	"koushoku/models"
 	"koushoku/modext"
@@ -23,9 +22,9 @@ func CreateTag(name string) (*modext.Tag, error) {
 	name = strings.Title(strings.TrimSpace(name))
 
 	if len(name) == 0 {
-		return nil, errors.New("Tag name is required")
+		return nil, errs.ErrTagNameRequired
 	} else if len(name) > 128 {
-		return nil, errors.New("Tag name is too long")
+		return nil, errs.ErrTagNameTooLong
 	}
 
 	slug := slug.Make(name)
@@ -38,11 +37,11 @@ func CreateTag(name string) (*modext.Tag, error) {
 		}
 		if err = tag.InsertG(boil.Infer()); err != nil {
 			log.Println(err)
-			return nil, err
+			return nil, errs.ErrUnknown
 		}
 	} else if err != nil {
 		log.Println(err)
-		return nil, err
+		return nil, errs.ErrUnknown
 	}
 
 	return modext.NewTag(tag), nil
@@ -52,9 +51,10 @@ func GetTag(slug string) (*modext.Tag, error) {
 	tag, err := models.Tags(Where("slug = ?", slug)).OneG()
 	if err != nil {
 		if err == sql.ErrNoRows {
-			return nil, errors.New("Tag does not exist")
+			return nil, errs.ErrTagNotFound
 		}
-		return nil, err
+		log.Println(err)
+		return nil, errs.ErrUnknown
 	}
 	return modext.NewTag(tag), nil
 }
@@ -77,7 +77,7 @@ func GetTags(opts GetTagsOptions) (result *GetTagsResult) {
 		opts.Offset = 0
 	}
 
-	cacheKey := fmt.Sprintf("%s%v", makeCacheKey(opts))
+	cacheKey := makeCacheKey(opts)
 	if c, err := Cache.GetWithPrefix(prefixgt, cacheKey); err == nil {
 		return c.(*GetTagsResult)
 	}
@@ -108,14 +108,14 @@ func GetTags(opts GetTagsOptions) (result *GetTagsResult) {
 	err := models.Tags(q...).BindG(context.Background(), &result.Tags)
 	if err != nil {
 		log.Println(err)
-		result.Err = ErrUnknown
+		result.Err = errs.ErrUnknown
 		return
 	}
 
 	count, err := models.Tags().CountG()
 	if err != nil {
 		log.Println(err)
-		result.Err = ErrUnknown
+		result.Err = errs.ErrUnknown
 		return
 	}
 

@@ -3,12 +3,12 @@ package services
 import (
 	"context"
 	"database/sql"
-	"errors"
 	"log"
 	"strings"
 	"time"
 
 	. "koushoku/cache"
+	"koushoku/errs"
 
 	"koushoku/models"
 	"koushoku/modext"
@@ -22,9 +22,9 @@ func CreateMagazine(name string) (*modext.Magazine, error) {
 	name = strings.TrimSpace(name)
 
 	if len(name) == 0 {
-		return nil, errors.New("Magazine name is required")
+		return nil, errs.ErrMagazineNameRequired
 	} else if len(name) > 128 {
-		return nil, errors.New("Magazine name is too long")
+		return nil, errs.ErrMagazineNameTooLong
 	}
 
 	slug := slug.Make(name)
@@ -37,11 +37,11 @@ func CreateMagazine(name string) (*modext.Magazine, error) {
 		}
 		if err = magazine.InsertG(boil.Infer()); err != nil {
 			log.Println(err)
-			return nil, err
+			return nil, errs.ErrUnknown
 		}
 	} else if err != nil {
 		log.Println(err)
-		return nil, err
+		return nil, errs.ErrUnknown
 	}
 
 	return modext.NewMagazine(magazine), nil
@@ -51,9 +51,10 @@ func GetMagazine(slug string) (*modext.Magazine, error) {
 	magazine, err := models.Magazines(Where("slug = ?", slug)).OneG()
 	if err != nil {
 		if err == sql.ErrNoRows {
-			return nil, errors.New("Magazine does not exist")
+			return nil, errs.ErrMagazineNotFound
 		}
-		return nil, err
+		log.Println(err)
+		return nil, errs.ErrUnknown
 	}
 	return modext.NewMagazine(magazine), nil
 }
@@ -106,14 +107,14 @@ func GetMagazines(opts GetMagazinesOptions) (result *GetMagazinesResult) {
 	err := models.Magazines(q...).BindG(context.Background(), &result.Magazines)
 	if err != nil {
 		log.Println(err)
-		result.Err = ErrUnknown
+		result.Err = errs.ErrUnknown
 		return
 	}
 
 	count, err := models.Magazines().CountG()
 	if err != nil {
 		log.Println(err)
-		result.Err = ErrUnknown
+		result.Err = errs.ErrUnknown
 	}
 
 	result.Total = int(count)

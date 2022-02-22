@@ -1,6 +1,7 @@
 package controllers
 
 import (
+	"fmt"
 	"net/http"
 	"path/filepath"
 	"strconv"
@@ -59,4 +60,46 @@ func Archive(c *server.Context) {
 
 	c.SetData("archive", result.Archive)
 	c.HTML(http.StatusOK, "archive.html")
+}
+
+func ReadArchive(c *server.Context) {
+	id, err := c.ParamInt64("id")
+	if err != nil {
+		c.HTML(http.StatusInternalServerError, "error.html")
+		return
+	}
+
+	pageNum, err := c.ParamInt("pageNum")
+	if err != nil {
+		c.HTML(http.StatusInternalServerError, "error.html")
+		return
+	}
+
+	opts := services.GetArchiveOptions{}
+	result := services.GetArchive(id, opts)
+	if result.Err != nil {
+		c.SetData("error", result.Err)
+		c.HTML(http.StatusInternalServerError, "error.html")
+		return
+	}
+
+	slug := c.Param("slug")
+	if !strings.EqualFold(slug, result.Archive.Slug) {
+		if pageNum <= 0 || int16(pageNum) > result.Archive.Pages {
+			c.Redirect(http.StatusFound, fmt.Sprintf("/archive/%d/%s/1", result.Archive.ID, result.Archive.Slug))
+		} else {
+			c.Redirect(http.StatusFound, fmt.Sprintf("/archive/%d/%s/%d", result.Archive.ID, result.Archive.Slug, pageNum))
+		}
+		return
+	}
+
+	if pageNum <= 0 || int16(pageNum) > result.Archive.Pages {
+		c.Redirect(http.StatusFound, fmt.Sprintf("/archive/%d/%s/1", id, result.Archive.Slug))
+		return
+	}
+
+	c.SetData("archive", result.Archive)
+	c.SetData("pageNum", pageNum)
+
+	c.HTML(http.StatusOK, "reader.html")
 }

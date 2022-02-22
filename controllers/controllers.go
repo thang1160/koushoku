@@ -30,7 +30,13 @@ func Init() {
 	server.GET("/magazines/:slug", Magazine)
 }
 
+const statsTemplateName = "stats.html"
+
 func Stats(c *server.Context) {
+	if c.TryCache(statsTemplateName) {
+		return
+	}
+
 	c.SetData("stats", services.GetStats())
-	c.HTML(http.StatusOK, "stats.html")
+	c.Cache(http.StatusOK, statsTemplateName)
 }

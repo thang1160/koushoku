@@ -11,6 +11,11 @@ import (
 	"koushoku/services"
 )
 
+const (
+	archiveTemplateName = "archive.html"
+	readerTemplateName  = "reader.html"
+)
+
 func ServeArchiveFile(c *server.Context) {
 	id, err := c.ParamInt("id")
 	if err != nil {
@@ -31,6 +36,10 @@ func ServeArchiveFile(c *server.Context) {
 }
 
 func Archive(c *server.Context) {
+	if c.TryCache(archiveTemplateName) {
+		return
+	}
+
 	id, err := c.ParamInt64("id")
 	if err != nil {
 		c.HTML(http.StatusInternalServerError, "error.html")
@@ -65,10 +74,14 @@ func Archive(c *server.Context) {
 	}
 
 	c.SetData("archive", result.Archive)
-	c.HTML(http.StatusOK, "archive.html")
+	c.Cache(http.StatusOK, archiveTemplateName)
 }
 
 func ReadArchive(c *server.Context) {
+	if c.TryCache(readerTemplateName) {
+		return
+	}
+
 	id, err := c.ParamInt64("id")
 	if err != nil {
 		c.HTML(http.StatusInternalServerError, "error.html")
@@ -107,5 +120,5 @@ func ReadArchive(c *server.Context) {
 	c.SetData("archive", result.Archive)
 	c.SetData("pageNum", pageNum)
 
-	c.HTML(http.StatusOK, "reader.html")
+	c.Cache(http.StatusOK, readerTemplateName)
 }

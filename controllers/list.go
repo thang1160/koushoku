@@ -94,7 +94,7 @@ func Tags(c *server.Context) {
 		return
 	}
 
-	result := services.GetTags(c.IsUohhhhhhhhh(), services.GetTagsOptions{})
+	result := services.GetTags(services.GetTagsOptions{})
 	if result.Err != nil {
 		c.SetData("error", result.Err)
 		c.HTML(http.StatusInternalServerError, "error.html")

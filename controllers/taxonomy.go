@@ -37,7 +37,7 @@ func Artist(c *server.Context) {
 		},
 	}
 
-	result := services.GetArchives(c.IsUohhhhhhhhh(), opts)
+	result := services.GetArchives(opts)
 	if result.Err != nil {
 		c.SetData("error", result.Err)
 		c.HTML(http.StatusInternalServerError, "error.html")
@@ -85,7 +85,7 @@ func Circle(c *server.Context) {
 		},
 	}
 
-	result := services.GetArchives(c.IsUohhhhhhhhh(), opts)
+	result := services.GetArchives(opts)
 	if result.Err != nil {
 		c.SetData("error", result.Err)
 		c.HTML(http.StatusInternalServerError, "error.html")
@@ -114,7 +114,7 @@ func Tag(c *server.Context) {
 		return
 	}
 
-	tag, err := services.GetTag(c.Param("slug"), c.IsUohhhhhhhhh())
+	tag, err := services.GetTag(c.Param("slug"))
 	if err != nil {
 		c.SetData("error", err)
 		c.HTML(http.StatusInternalServerError, "error.html")
@@ -133,7 +133,7 @@ func Tag(c *server.Context) {
 		},
 	}
 
-	result := services.GetArchives(c.IsUohhhhhhhhh(), opts)
+	result := services.GetArchives(opts)
 	if result.Err != nil {
 		c.SetData("error", result.Err)
 		c.HTML(http.StatusInternalServerError, "error.html")
@@ -181,7 +181,7 @@ func Magazine(c *server.Context) {
 		},
 	}
 
-	result := services.GetArchives(c.IsUohhhhhhhhh(), opts)
+	result := services.GetArchives(opts)
 	if result.Err != nil {
 		c.SetData("error", result.Err)
 		c.HTML(http.StatusInternalServerError, "error.html")

@@ -49,7 +49,6 @@ func Archive(c *server.Context) {
 			services.ArchiveRels.Parody,
 			services.ArchiveRels.Tags,
 		},
-		IsUohhhhhhhhh: c.IsUohhhhhhhhh(),
 	}
 	result := services.GetArchive(id, opts)
 	if result.Err != nil {

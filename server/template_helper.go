@@ -21,7 +21,20 @@ var helper = template.FuncMap{
 	},
 
 	"formatArchive": services.FormatArchive,
-	"formatBytes":   services.FormatBytes,
+	"formatBytes": func(bytes interface{}) string {
+		var n int64
+		switch v := bytes.(type) {
+		case int:
+			n = int64(v)
+		case int64:
+			n = v
+		case uint:
+			n = int64(v)
+		case uint64:
+			n = int64(v)
+		}
+		return services.FormatBytes(n)
+	},
 
 	"joinURL": func(base string, s ...string) string {
 		return services.JoinURL(base, s...)

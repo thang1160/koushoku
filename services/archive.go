@@ -695,6 +695,68 @@ func SearchArchives(opts GetArchivesOptions) (result *GetArchivesResult) {
 	return getArchives(true, opts)
 }
 
+func GetArchiveCount() (int64, error) {
+	if c, err := Cache.Get("archive-count"); err == nil {
+		return c.(int64), nil
+	}
+
+	count, err := models.Archives(Where("published_at IS NOT NULL")).CountG()
+	if err != nil {
+		log.Println(err)
+		return 0, errs.ErrUnknown
+	}
+
+	Cache.Set("archive-count", count, time.Hour*24*7)
+	return count, nil
+}
+
+func GetArchiveStats() (size, pages uint64, err error) {
+	if c, err := Cache.Get("archive-size"); err == nil {
+		size = c.(uint64)
+	}
+	if c, err := Cache.Get("archive-pages"); err == nil {
+		pages = c.(uint64)
+	}
+
+	if size > 0 && pages > 0 {
+		return
+	}
+
+	archives, err := models.Archives(Where("published_at IS NOT NULL")).AllG()
+	if err != nil {
+		log.Println(err)
+		err = errs.ErrUnknown
+		return
+	}
+
+	for _, archive := range archives {
+		var f *zip.ReadCloser
+		f, err = zip.OpenReader(archive.Path)
+		if err != nil {
+			log.Println(err)
+			err = errs.ErrUnknown
+			return
+		}
+		pages += uint64(len(f.File))
+		f.Close()
+
+		var d fs.FileInfo
+		d, err = os.Stat(archive.Path)
+		if err != nil {
+			log.Println(err)
+			err = errs.ErrUnknown
+			return
+		}
+
+		size += uint64(d.Size())
+	}
+
+	Cache.Set("archive-size", size, time.Hour*24*7)
+	Cache.Set("archive-pages", pages, time.Hour*24*7)
+
+	return
+}
+
 func PublishArchive(id int64) (*modext.Archive, error) {
 	archive, err := models.FindArchiveG(id)
 	if err != nil {

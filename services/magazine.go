@@ -121,6 +121,21 @@ func GetMagazines(opts GetMagazinesOptions) (result *GetMagazinesResult) {
 	return
 }
 
+func GetMagazineCount() (int64, error) {
+	if c, err := Cache.Get("magazine-count"); err == nil {
+		return c.(int64), nil
+	}
+
+	count, err := models.Magazines().CountG()
+	if err != nil {
+		log.Println(err)
+		return 0, errs.ErrUnknown
+	}
+
+	Cache.Set("magazine-count", count, time.Hour*24*7)
+	return count, nil
+}
+
 var isMagazineValidMap = QueryMapCache{
 	Map: make(map[string]bool),
 }

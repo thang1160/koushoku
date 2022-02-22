@@ -122,6 +122,21 @@ func GetParodies(opts GetParodiesOptions) (result *GetParodiesResult) {
 	return
 }
 
+func GetParodyCount() (int64, error) {
+	if c, err := Cache.Get("parody-count"); err == nil {
+		return c.(int64), nil
+	}
+
+	count, err := models.Parodies().CountG()
+	if err != nil {
+		log.Println(err)
+		return 0, errs.ErrUnknown
+	}
+
+	Cache.Set("parody-count", count, time.Hour*24*7)
+	return count, nil
+}
+
 var isParodyValidMap = QueryMapCache{
 	Map: make(map[string]bool),
 }

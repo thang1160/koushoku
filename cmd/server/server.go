@@ -5,6 +5,7 @@ import (
 	"os"
 
 	. "koushoku/config"
+	"koushoku/services"
 
 	"koushoku/controllers"
 	"koushoku/database"
@@ -29,6 +30,10 @@ func main() {
 	}
 
 	database.Init()
+	if err := services.AnalyzeStats(); err != nil {
+		return
+	}
+
 	server.Init()
 	controllers.Init()
 	server.Start()

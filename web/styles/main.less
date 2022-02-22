@@ -283,7 +283,7 @@ body {
 
       form {
         box-shadow: 0 0 1rem fade(#000, 25%);
-        border-radius: 0.25rem;
+        border-radius: 0.5rem;
         border: 0.1rem solid lighten(@bg-secondary, 4%);
         background-color: @bg-secondary;
 
@@ -337,6 +337,26 @@ body {
     p {
       padding: 2rem;
     }
+  }
+}
+
+body > #error {
+  text-align: center;
+  margin: auto;
+
+  h1,
+  h2 {
+    text-transform: uppercase;
+    font-size: 3.2rem;
+    line-height: 3.6rem;
+
+    &:not(:last-child) {
+      margin-bottom: 1rem;
+    }
+  }
+
+  p ~ p {
+    margin-top: 1rem;
   }
 }
 
@@ -394,7 +414,7 @@ body {
     width: calc(100% / 2);
   }
 
-  @media (max-width: 420px) {
+  @media (max-width: 320px) {
     width: 100%;
   }
 }
@@ -519,7 +539,7 @@ body {
 .feed#taxonomy .entry a {
   box-shadow: 0 0 1rem fade(#000, 25%);
   border: 0.1rem solid lighten(@bg-secondary, 4%);
-  border-radius: 0.25rem;
+  border-radius: 0.5rem;
   background-color: @bg-secondary;
 
   display: flex;
@@ -587,6 +607,198 @@ body {
   }
 }
 
+#archive {
+  font-size: 0;
+  padding: 2rem;
+
+  > * {
+    display: inline-block;
+    vertical-align: top;
+  }
+
+  > aside {
+    font-size: @fs;
+    width: 30%;
+    padding-right: 2rem;
+  }
+}
+
+#archive .thumbnail {
+  box-shadow: 0 0 1rem fade(#000, 25%);
+  background-color: @bg-secondary;
+  border-radius: 0.5rem;
+
+  position: relative;
+  overflow: hidden;
+
+  height: 0;
+  padding-top: calc(3 / 2 * 100%);
+
+  img {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+  }
+}
+
+#archive .title {
+  font-size: 2rem;
+  line-height: 2.4rem;
+  margin-bottom: 1rem;
+}
+
+#archive .metadata {
+  margin-top: 2rem;
+}
+
+#archive table {
+  font-size: 1.6rem;
+  line-height: 2.4rem;
+
+  width: 100%;
+
+  td {
+    vertical-align: top;
+
+    &:first-child {
+      width: 9rem;
+    }
+  }
+}
+
+#archive .download {
+  box-shadow: 0 0 1rem fade(#000, 25%);
+  border: 0.1rem solid lighten(@bg-secondary, 4%);
+  border-radius: 0.5rem;
+  background-color: @bg-secondary;
+
+  font-size: 2rem;
+  line-height: 2.4rem;
+  text-align: center;
+
+  display: block;
+  padding: 1rem;
+  margin-top: 1rem;
+}
+
+@pagesPad: 0.5rem;
+#archive .pages {
+  width: 70%;
+  margin: -@pagesPad;
+}
+
+#archive .pages .page {
+  vertical-align: top;
+  display: inline-block;
+  width: calc(100% / 5);
+  padding: @pagesPad;
+
+  @media (max-width: 1280px) {
+    width: calc(100% / 4);
+  }
+
+  @media (max-width: 1024px) {
+    width: calc(100% / 3);
+  }
+
+  @media (max-width: 896px) {
+    width: calc(100% / 4);
+  }
+
+  @media (max-width: 768px) {
+    width: calc(100% / 3);
+  }
+
+  @media (max-width: 640px) {
+    width: calc(100% / 2);
+  }
+
+  @media (max-width: 320px) {
+    width: 100%;
+    padding-right: 0;
+  }
+
+  a {
+    box-shadow: 0 0 1rem fade(#000, 25%);
+    background-color: @bg-secondary;
+    border-radius: 0.5rem;
+
+    position: relative;
+    overflow: hidden;
+
+    display: block;
+    height: 0;
+    padding-top: calc(3 / 2 * 100%);
+
+    &:hover {
+      opacity: 0.9;
+    }
+
+    img {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+    }
+  }
+}
+
+#reader {
+  text-align: center;
+  font-size: 0;
+
+  flex: 1 0;
+  display: flex;
+  flex-direction: column;
+
+  h1 {
+    font-size: 1.6rem;
+    margin-bottom: 1rem;
+  }
+}
+
+#reader nav {
+  border: 0 solid lighten(@bg-secondary, 4%);
+  border-width: 0.1rem 0;
+  background-color: @bg-secondary;
+
+  > * {
+    font-size: 1.6rem;
+    display: inline-block;
+    vertical-align: top;
+
+    padding: 0.8rem 1.2rem;
+  }
+}
+
+#reader .current,
+#reader .total {
+  font-weight: 600;
+}
+
+#reader .page {
+  flex: 1 0;
+  min-height: 20rem;
+
+  a {
+    display: block;
+    width: 100%;
+  }
+}
+
+@media (max-width: 896px) {
+  #archive > aside {
+    width: 100%;
+    padding-right: 0;
+  }
+
+  #archive .pages {
+    width: 100%;
+    margin-top: 1rem;
+  }
+}
+
 @media (max-width: 768px) {
   body > header nav {
     text-align: center;
@@ -594,5 +806,17 @@ body {
       float: initial;
       display: block;
     }
+  }
+}
+
+@media (max-width: 320px) {
+  #archive .pages {
+    margin-left: 0;
+    margin-right: 0;
+  }
+
+  #archive .pages .page {
+    padding-left: 0;
+    padding-right: 0;
   }
 }

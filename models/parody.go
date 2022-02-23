@@ -772,10 +772,6 @@ func (o *Parody) Update(exec boil.Executor, columns boil.Columns) error {
 			parodyAllColumns,
 			parodyPrimaryKeyColumns,
 		)
-
-		if !columns.IsWhitelist() {
-			wl = strmangle.SetComplement(wl, []string{"created_at"})
-		}
 		if len(wl) == 0 {
 			return errors.New("models: unable to update parody, could not build whitelist")
 		}

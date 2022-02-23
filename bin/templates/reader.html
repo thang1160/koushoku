@@ -2,31 +2,22 @@
   <!DOCTYPE html>
   <html lang="{{ language }}">
     {{- template "head" . }}
-    <body>
-      {{- template "header" . }}
-      <main id="reader">
-        <header>
-          <h1>
-            <a href="/archive/{{ .archive.ID }}/{{ .archive.Slug }}">
-              <span>{{ .archive.Title }}</span>
-            </a>
-          </h1>
-          {{- template "reader_pagination". }}
-        </header>
-        <div class="page">
-          {{- $next := .pageNum }}
-          {{- if lt $next .archive.Pages }}
-            {{- $next = (inc $next) }}
-          {{- end }}
-          <a href="/archive/{{ .archive.ID }}/{{ .archive.Slug }}/{{ $next }}">
-            <img src="/data/{{ .archive.ID }}/{{ .pageNum }}.jpg" />
-          </a>
-        </div>
-        <footer>
-          {{- template "reader_pagination". }}
-        </footer>
+    <body id="reader">
+      <header>
+        {{- template "reader_pagination". }}
+      </header>
+      <main class="page">
+        {{- $next := .pageNum }}
+        {{- if lt $next .archive.Pages }}
+          {{- $next = (inc $next) }}
+        {{- end }}
+        <a href="/archive/{{ .archive.ID }}/{{ .archive.Slug }}/{{ $next }}">
+          <img src="/data/{{ .archive.ID }}/{{ .pageNum }}.jpg" />
+        </a>
       </main>
-      {{- template "footer" . }}
+      <footer>
+        {{- template "reader_pagination". }}
+      </footer>
     </body>
   </html>
 {{- end }}

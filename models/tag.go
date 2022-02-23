@@ -806,10 +806,6 @@ func (o *Tag) Update(exec boil.Executor, columns boil.Columns) error {
 			tagAllColumns,
 			tagPrimaryKeyColumns,
 		)
-
-		if !columns.IsWhitelist() {
-			wl = strmangle.SetComplement(wl, []string{"created_at"})
-		}
 		if len(wl) == 0 {
 			return errors.New("models: unable to update tag, could not build whitelist")
 		}

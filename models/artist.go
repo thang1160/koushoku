@@ -806,10 +806,6 @@ func (o *Artist) Update(exec boil.Executor, columns boil.Columns) error {
 			artistAllColumns,
 			artistPrimaryKeyColumns,
 		)
-
-		if !columns.IsWhitelist() {
-			wl = strmangle.SetComplement(wl, []string{"created_at"})
-		}
 		if len(wl) == 0 {
 			return errors.New("models: unable to update artist, could not build whitelist")
 		}

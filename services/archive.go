@@ -5,6 +5,7 @@ import (
 	"bufio"
 	"bytes"
 	"database/sql"
+	"errors"
 	"fmt"
 	"io"
 	"io/fs"
@@ -36,10 +37,10 @@ var (
 	ArchiveRels = models.ArchiveRels
 )
 
-func checkArchiveThumbnail(id, i, width int, w http.ResponseWriter, r *http.Request) (string, bool) {
+func checkArchiveThumbnail(id, index, width int, w http.ResponseWriter, r *http.Request) (string, bool) {
 	var fp string
 	if width > 0 && width <= 1024 && width%128 == 0 {
-		fp = filepath.Join(Config.Directories.Thumbnails, fmt.Sprintf("%d-%d.%d.jpg", id, i+1, width))
+		fp = filepath.Join(Config.Directories.Thumbnails, fmt.Sprintf("%d-%d.%d.jpg", id, index+1, width))
 		if _, err := os.Stat(fp); err == nil {
 			http.ServeFile(w, r, fp)
 			return fp, true
@@ -203,17 +204,24 @@ func IndexArchives() {
 	}
 }
 
-func ModerateArchives(file string) {
+func getBlacklists(file string) (artists, titles map[string]bool, err error) {
+	if d, err := os.Stat(file); os.IsNotExist(err) {
+		return nil, nil, err
+	} else if d.IsDir() {
+		return nil, nil, errors.New("Input is a directory")
+	}
+
 	f, err := os.Open(file)
 	if err != nil {
-		log.Fatalln(err)
+		return nil, nil, err
 	}
+	defer f.Close()
 
 	scanner := bufio.NewScanner(f)
 	scanner.Split(bufio.ScanLines)
 
-	var artists []string
-	var titles []string
+	artists = make(map[string]bool)
+	titles = make(map[string]bool)
 
 	for scanner.Scan() {
 		line := strings.TrimSpace(scanner.Text())
@@ -224,17 +232,27 @@ func ModerateArchives(file string) {
 		if len(arr) != 2 {
 			continue
 		}
-		if strings.EqualFold(arr[0], "artist") {
-			log.Println("Blacklisting artist:", arr[1])
-			artists = append(artists, arr[1])
-		} else if strings.EqualFold(arr[0], "title") {
-			log.Println("Blacklisting title:", arr[1])
-			titles = append(titles, arr[1])
+
+		t := strings.TrimSpace(arr[0])
+		v := slug.Make(arr[1])
+
+		if strings.EqualFold(t, "artist") {
+			artists[v] = true
+		} else if strings.EqualFold(t, "title") {
+			titles[v] = true
 		}
 	}
-	f.Close()
 
 	if err := scanner.Err(); err != nil {
+		return nil, nil, err
+	}
+
+	return
+}
+
+func ModerateArchives(file string) {
+	artists, titles, err := getBlacklists(file)
+	if err != nil {
 		log.Fatalln(err)
 	}
 
@@ -244,33 +262,15 @@ func ModerateArchives(file string) {
 	}
 
 	for _, archive := range archives {
-		remove := false
-
+		_, remove := titles[archive.Slug]
 		if archive.R != nil && len(archive.R.Artists) > 0 {
 			for _, artist := range archive.R.Artists {
-				if remove {
-					break
-				}
-
-				for _, a := range artists {
-					if strings.EqualFold(artist.Name, a) {
-						artist.DeleteG()
-						remove = true
-						break
-					}
-				}
-			}
-		}
-
-		if !remove {
-			for _, title := range titles {
-				if strings.EqualFold(archive.Title, title) {
+				if _, ok := artists[artist.Slug]; ok {
+					artist.DeleteG()
 					remove = true
-					break
 				}
 			}
 		}
-
 		if remove {
 			log.Println("Removing archive", archive.Path)
 			DeleteArchive(archive.ID)

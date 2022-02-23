@@ -1,15 +1,12 @@
 package main
 
 import (
-	"log"
 	"os"
-
-	. "koushoku/config"
-	"koushoku/services"
 
 	"koushoku/controllers"
 	"koushoku/database"
 	"koushoku/server"
+	"koushoku/services"
 )
 
 func init() {
@@ -17,18 +14,6 @@ func init() {
 }
 
 func main() {
-	if _, err := os.Stat(Config.Directories.Data); os.IsNotExist(err) {
-		if err := os.MkdirAll(Config.Directories.Data, 0755); err != nil {
-			log.Fatalln(err)
-		}
-	}
-
-	if _, err := os.Stat(Config.Directories.Thumbnails); os.IsNotExist(err) {
-		if err := os.MkdirAll(Config.Directories.Thumbnails, 0755); err != nil {
-			log.Fatalln(err)
-		}
-	}
-
 	database.Init()
 	if err := services.AnalyzeStats(); err != nil {
 		return

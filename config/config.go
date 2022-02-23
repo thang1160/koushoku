@@ -65,14 +65,15 @@ var Config struct {
 		Data string
 
 		Symlinks   string
+		Templates  string
 		Thumbnails string
-		Covers     string
 	}
 
 	Paths struct {
 		Batches   string
-		Singles   string
 		Blacklist string
+		Metadata  string
+		Singles   string
 	}
 }
 
@@ -90,25 +91,70 @@ func init() {
 
 	Config.Directories.Root = filepath.Dir(exec)
 	Config.Directories.Symlinks = filepath.Join(Config.Directories.Root, "symlinks")
+	if _, err := os.Stat(Config.Directories.Symlinks); os.IsNotExist(err) {
+		log.Println("Creating symlinks directory...")
+		if err := os.Mkdir(Config.Directories.Symlinks, 0755); err != nil {
+			log.Fatalln(err)
+		}
+	}
+
+	Config.Directories.Templates = filepath.Join(Config.Directories.Root, "templates")
+	if _, err := os.Stat(Config.Directories.Templates); os.IsNotExist(err) {
+		log.Println("Creating templates directory...")
+		if err := os.Mkdir(Config.Directories.Templates, 0755); err != nil {
+			log.Fatalln(err)
+		}
+	}
+
 	Config.Directories.Thumbnails = filepath.Join(Config.Directories.Root, "thumbnails")
-	Config.Directories.Covers = filepath.Join(Config.Directories.Root, "covers")
+	if _, err := os.Stat(Config.Directories.Thumbnails); os.IsNotExist(err) {
+		log.Println("Creating thumbnails directory...")
+		if err := os.MkdirAll(Config.Directories.Thumbnails, 0755); err != nil {
+			log.Fatalln(err)
+		}
+	}
 
 	Config.Paths.Batches = filepath.Join(Config.Directories.Root, "batches.txt")
-	Config.Paths.Singles = filepath.Join(Config.Directories.Root, "singles.txt")
+	if _, err := os.Stat(Config.Paths.Batches); os.IsNotExist(err) {
+		log.Println("No batches file found, creating one...")
+		if err := os.WriteFile(Config.Paths.Batches, []byte(""), 0755); err != nil {
+			log.Fatalln(err)
+		}
+	}
+
 	Config.Paths.Blacklist = filepath.Join(Config.Directories.Root, "blacklist.txt")
+	if _, err := os.Stat(Config.Paths.Blacklist); os.IsNotExist(err) {
+		log.Println("No blacklist file found, creating one...")
+		if err := os.WriteFile(Config.Paths.Blacklist, []byte(""), 0755); err != nil {
+			log.Fatalln(err)
+		}
+	}
+
+	Config.Paths.Metadata = filepath.Join(Config.Directories.Root, "metadata.json")
+	if _, err := os.Stat(Config.Paths.Metadata); os.IsNotExist(err) {
+		log.Println("No metadata file found, creating one...")
+		if err := os.WriteFile(Config.Paths.Metadata, []byte("{}"), 0755); err != nil {
+			log.Fatalln(err)
+		}
+	}
+
+	Config.Paths.Singles = filepath.Join(Config.Directories.Root, "singles.txt")
+	if _, err := os.Stat(Config.Paths.Singles); os.IsNotExist(err) {
+		log.Println("No singles file found, creating one...")
+		if err := os.WriteFile(Config.Paths.Singles, []byte(""), 0755); err != nil {
+			log.Fatalln(err)
+		}
+	}
 
 	if len(opts.Path) == 0 {
 		opts.Path = filepath.Join(Config.Directories.Root, "config.ini")
 	}
-	_, err = os.Stat(opts.Path)
-	if os.IsNotExist(err) {
-		dir := filepath.Dir(opts.Path)
-		if _, err := os.Stat(dir); os.IsNotExist(err) {
-			if err := os.MkdirAll(dir, 0755); err != nil {
-				log.Fatalln(err)
-			}
-		}
-		if err := os.WriteFile(opts.Path, buf, 0755); err != nil {
+
+	if _, err = os.Stat(opts.Path); os.IsNotExist(err) {
+		log.Println("No config file found, creating one...")
+		if err := os.MkdirAll(filepath.Dir(opts.Path), 0755); err != nil {
+			log.Fatalln(err)
+		} else if err := os.WriteFile(opts.Path, buf, 0755); err != nil {
 			log.Fatalln(err)
 		}
 	}
@@ -144,6 +190,12 @@ func init() {
 	Config.Cache.TemplatesTTL = time.Duration(file.Section("cache").Key("templates_ttl").MustInt(300000000000))
 
 	Config.Directories.Data = file.Section("directories").Key("data").MustString(filepath.Join(Config.Directories.Root, "data"))
+	if _, err := os.Stat(Config.Directories.Data); os.IsNotExist(err) {
+		log.Println("Creating data directory...")
+		if err := os.Mkdir(Config.Directories.Data, 0755); err != nil {
+			log.Fatalln(err)
+		}
+	}
 
 	if len(opts.Mode) > 0 {
 		Config.Mode = opts.Mode

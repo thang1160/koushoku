@@ -2,10 +2,8 @@ package services
 
 import (
 	"archive/zip"
-	"bufio"
 	"bytes"
 	"database/sql"
-	"errors"
 	"fmt"
 	"io"
 	"io/fs"
@@ -13,14 +11,17 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	. "koushoku/cache"
 	. "koushoku/config"
 
+	"koushoku/database"
 	"koushoku/errs"
 	"koushoku/models"
 	"koushoku/modext"
@@ -79,6 +80,14 @@ func createArchiveThumbnail(f io.Reader, fp string, width int, w http.ResponseWr
 	return true
 }
 
+func PurgeArchiveThumbnails() {
+	if err := os.RemoveAll(Config.Directories.Thumbnails); err != nil {
+		log.Fatalln(err)
+	} else if err := os.MkdirAll(Config.Directories.Thumbnails, 0755); err != nil {
+		log.Fatalln(err)
+	}
+}
+
 func ServeArchive(id int64, w http.ResponseWriter, r *http.Request) {
 	path, err := GetArchiveSymlink(int(id))
 	if err != nil {
@@ -104,17 +113,17 @@ func ServeArchive(id int64, w http.ResponseWriter, r *http.Request) {
 }
 
 func ServeArchiveFile(id, index, width int, w http.ResponseWriter, r *http.Request) {
-	fp, ok := checkArchiveFileThumbnail(id, index, width, w, r)
-	if ok {
-		return
-	}
-
 	path, err := GetArchiveSymlink(id)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	} else if len(path) == 0 {
 		w.WriteHeader(http.StatusNotFound)
+		return
+	}
+
+	fp, ok := checkArchiveFileThumbnail(id, index, width, w, r)
+	if ok {
 		return
 	}
 
@@ -165,6 +174,151 @@ func ServeArchiveFile(id, index, width int, w http.ResponseWriter, r *http.Reque
 	}
 }
 
+var archiveRgx = regexp.MustCompile(`(\(|\[)?[^\(\[\]\)]+(\)|\])?`)
+
+func populateArchive(archive *modext.Archive) error {
+	if archive == nil {
+		return nil
+	}
+
+	fileName := filepath.Base(archive.Path)
+	matches := archiveRgx.FindAllString(strings.TrimRight(fileName, filepath.Ext(archive.Path)), -1)
+	if len(matches) == 0 {
+		return nil
+	}
+
+	var artists []string
+	var circle, magazine, title string
+
+	for i, match := range matches {
+		match = strings.TrimSpace(match)
+		if len(match) == 0 {
+			continue
+		}
+
+		if i == 0 && strings.HasPrefix(match, "[") {
+			match = strings.TrimPrefix(match, "[")
+			match = strings.TrimSuffix(match, "]")
+
+			artists = append(artists, match)
+			continue
+		}
+
+		if i == 1 && strings.HasPrefix(match, "(") {
+			match = strings.TrimPrefix(match, "(")
+			match = strings.TrimSuffix(match, ")")
+
+			if len(artists) > 0 {
+				circle = artists[0]
+				artists = artists[1:]
+			}
+
+			names := strings.Split(match, ",")
+			for _, name := range names {
+				artists = append(artists, strings.TrimSpace(name))
+			}
+			continue
+		}
+
+		if (i == 2 || i == 3) && strings.HasPrefix(match, "(") {
+			match = strings.TrimPrefix(match, "(")
+			match = strings.TrimSuffix(match, ")")
+
+			if i < len(matches)-1 {
+				next := matches[i+1]
+				if len(next) > 0 && !(strings.HasPrefix(match, "(") || strings.HasSuffix(match, "[")) {
+					continue
+				}
+			}
+
+			if strings.HasPrefix(match, "x") || strings.EqualFold(match, "temp") ||
+				strings.EqualFold(match, "strong") || strings.EqualFold(match, "complete") {
+				continue
+			}
+
+			magazine = match
+			continue
+		}
+
+		if i == 1 || i == 2 {
+			title = match
+		}
+	}
+
+	archive.Slug = slug.Make(title)
+	if len(circle) > 0 {
+		archive.Circle = &modext.Circle{
+			Slug: slug.Make(circle),
+			Name: circle,
+		}
+	}
+
+	if len(magazine) > 0 {
+		archive.Magazine = &modext.Magazine{Name: magazine}
+	}
+
+	archive.Artists = make([]*modext.Artist, len(artists))
+	for i, artist := range artists {
+		archive.Artists[i] = &modext.Artist{Name: artist}
+	}
+
+	if _, ok := blacklist.Archives[strings.ToLower(archive.Title)]; ok {
+		return nil
+	}
+
+	for _, artist := range archive.Artists {
+		if _, ok := blacklist.Artists[strings.ToLower(artist.Name)]; ok {
+			return nil
+		}
+	}
+
+	if d, err := os.Stat(archive.Path); err == nil {
+		archive.Size = d.Size()
+	} else {
+		return err
+	}
+
+	zf, err := zip.OpenReader(archive.Path)
+	if err != nil {
+		if err == zip.ErrFormat {
+			log.Println(err, archive.Path)
+			return nil
+		}
+		return err
+	}
+	defer zf.Close()
+
+	for _, f := range zf.File {
+		d := f.FileInfo()
+		name := d.Name()
+		if d.IsDir() || !(strings.HasSuffix(name, ".jpg") ||
+			strings.HasSuffix(name, ".png")) {
+			continue
+		}
+
+		archive.Pages++
+		if archive.CreatedAt == 0 {
+			archive.CreatedAt = d.ModTime().Unix()
+		}
+	}
+
+	if archive.Pages < 3 {
+		return nil
+	}
+	archive.Title = title
+
+	metadata, ok := metadataMap.Map[fileName]
+	if !ok {
+		return nil
+	}
+
+	archive.Parody = &modext.Parody{Name: metadata.Parody}
+	for _, tag := range metadata.Tags {
+		archive.Tags = append(archive.Tags, &modext.Tag{Name: tag})
+	}
+	return nil
+}
+
 func IndexArchives() {
 	if _, err := os.Stat(Config.Directories.Symlinks); os.IsNotExist(err) {
 		if err := os.MkdirAll(Config.Directories.Symlinks, 0755); err != nil {
@@ -172,89 +326,67 @@ func IndexArchives() {
 		}
 	}
 
-	var archives []*modext.Archive
+	initBlacklist()
+	initMetadata()
+
+	var files []string
 	walkFn := func(path string, info fs.FileInfo, err error) error {
 		if err != nil || info.IsDir() ||
 			strings.Contains(path, "/cover") || strings.Contains(path, "/doujin") ||
 			strings.Contains(path, "/illustration") || strings.Contains(path, "/interview") ||
 			strings.Contains(path, "/non-h") || strings.Contains(path, "/spread") ||
-			strings.Contains(path, "/western") || !strings.HasSuffix(path, ".zip") {
+			strings.Contains(path, "/western") ||
+			!(strings.HasSuffix(path, ".zip") || strings.HasSuffix(path, ".cbz")) ||
+			strings.Contains(path, "Key-Visual Collection") ||
+			strings.Contains(path, "Kairakuten Cover") {
 			return err
 		}
 
-		fileName := strings.TrimRight(filepath.Base(path), ".zip")
-		archive := &modext.Archive{Path: path}
-		archive.FormatFromString(fileName)
-
-		if len(archive.Title) > 0 {
-			log.Println("Found archive", fileName)
-			archives = append(archives, archive)
-		}
-
+		log.Println("Found archive", filepath.Base(path))
+		files = append(files, path)
 		return nil
 	}
 
-	filepath.Walk(Config.Directories.Data, walkFn)
-	for _, archive := range archives {
-		log.Println("Indexing archive", filepath.Base(archive.Path))
-		c, err := CreateArchive(archive)
-		if c != nil && err == nil {
-			CreateArchiveSymlink(c)
-		}
-	}
-}
-
-func getBlacklists(file string) (artists, titles map[string]bool, err error) {
-	if d, err := os.Stat(file); os.IsNotExist(err) {
-		return nil, nil, err
-	} else if d.IsDir() {
-		return nil, nil, errors.New("Input is a directory")
-	}
-
-	f, err := os.Open(file)
-	if err != nil {
-		return nil, nil, err
-	}
-	defer f.Close()
-
-	scanner := bufio.NewScanner(f)
-	scanner.Split(bufio.ScanLines)
-
-	artists = make(map[string]bool)
-	titles = make(map[string]bool)
-
-	for scanner.Scan() {
-		line := strings.TrimSpace(scanner.Text())
-		if len(line) == 0 {
-			continue
-		}
-		arr := strings.Split(line, ":")
-		if len(arr) != 2 {
-			continue
-		}
-
-		t := strings.TrimSpace(arr[0])
-		v := slug.Make(arr[1])
-
-		if strings.EqualFold(t, "artist") {
-			artists[v] = true
-		} else if strings.EqualFold(t, "title") {
-			titles[v] = true
-		}
-	}
-
-	if err := scanner.Err(); err != nil {
-		return nil, nil, err
-	}
-
-	return
-}
-
-func ModerateArchives(file string) {
-	artists, titles, err := getBlacklists(file)
-	if err != nil {
+	if err := filepath.Walk(Config.Directories.Data, walkFn); err != nil {
 		log.Fatalln(err)
 	}
+
+	var wg sync.WaitGroup
+	wg.Add(len(files))
+
+	c := make(chan bool, 5)
+	defer func() {
+		close(c)
+	}()
+
+	for _, path := range files {
+		c <- true
+
+		go func(path string) {
+			defer func() {
+				wg.Done()
+				<-c
+			}()
+
+			archive := &modext.Archive{Path: path}
+			if err := populateArchive(archive); err != nil {
+				log.Fatalln(err)
+			}
+
+			if len(archive.Title) > 0 {
+				log.Println("Indexing archive", filepath.Base(archive.Path))
+				c, err := CreateArchive(archive)
+				if c != nil && err == nil {
+					CreateArchiveSymlink(c)
+				}
+			}
+		}(path)
+	}
+	wg.Wait()
+}
+
+func ModerateArchives() {
+	initBlacklist()
 
 	archives, err := models.Archives(Load(ArchiveRels.Artists)).AllG()
 	if err != nil {
@@ -262,10 +394,10 @@ func ModerateArchives(file string) {
 	}
 
 	for _, archive := range archives {
-		_, remove := titles[archive.Slug]
+		_, remove := blacklist.Archives[strings.ToLower(archive.Title)]
 		if archive.R != nil && len(archive.R.Artists) > 0 {
 			for _, artist := range archive.R.Artists {
-				if _, ok := artists[artist.Slug]; ok {
+				if _, ok := blacklist.Artists[strings.ToLower(artist.Name)]; ok {
 					artist.DeleteG()
 					remove = true
 				}
@@ -278,82 +410,176 @@ func ModerateArchives(file string) {
 	}
 }
 
-func refreshArchiveRels(arc *models.Archive, archive *modext.Archive) error {
-	if archive.Circle != nil {
-		circle, err := CreateCircle(archive.Circle.Name)
+var refreshArchiveRelsCache struct {
+	Artists   map[string]*models.Artist
+	Circles   map[string]*models.Circle
+	Magazines map[string]*models.Magazine
+	Parodies  map[string]*models.Parody
+	Tags      map[string]*models.Tag
+
+	sync.RWMutex
+	sync.Once
+}
+
+func refreshArchiveRels(e boil.Executor, arc *models.Archive, archive *modext.Archive) error {
+	var err error
+	refreshArchiveRelsCache.Do(func() {
+		refreshArchiveRelsCache.Lock()
+		defer refreshArchiveRelsCache.Unlock()
+
+		refreshArchiveRelsCache.Artists = make(map[string]*models.Artist)
+		refreshArchiveRelsCache.Circles = make(map[string]*models.Circle)
+		refreshArchiveRelsCache.Magazines = make(map[string]*models.Magazine)
+		refreshArchiveRelsCache.Parodies = make(map[string]*models.Parody)
+		refreshArchiveRelsCache.Tags = make(map[string]*models.Tag)
+	})
+
+	var artists []*models.Artist
+	for _, artist := range archive.Artists {
+		refreshArchiveRelsCache.RLock()
+		model, ok := refreshArchiveRelsCache.Artists[artist.Name]
+		refreshArchiveRelsCache.RUnlock()
+
+		if ok {
+			artists = append(artists, model)
+			continue
+		}
+
+		refreshArchiveRelsCache.Lock()
+		artist, err = CreateArtist(artist.Name)
 		if err != nil {
+			refreshArchiveRelsCache.Unlock()
 			return err
 		}
-		if err := arc.SetCircleG(false, &models.Circle{
-			ID:   circle.ID,
-			Slug: circle.Slug,
-			Name: circle.Name,
-		}); err != nil {
+
+		model = &models.Artist{
+			ID:   artist.ID,
+			Slug: artist.Slug,
+			Name: artist.Name,
+		}
+		refreshArchiveRelsCache.Artists[artist.Name] = model
+		refreshArchiveRelsCache.Unlock()
+
+		artists = append(artists, model)
+	}
+	if err := arc.SetArtists(e, false, artists...); err != nil {
+		log.Println(err)
+		return errs.ErrUnknown
+	}
+
+	if archive.Circle != nil {
+		refreshArchiveRelsCache.RLock()
+		model, ok := refreshArchiveRelsCache.Circles[archive.Circle.Name]
+		refreshArchiveRelsCache.RUnlock()
+
+		if !ok {
+			refreshArchiveRelsCache.Lock()
+			circle, err := CreateCircle(archive.Circle.Name)
+			if err != nil {
+				refreshArchiveRelsCache.Unlock()
+				return err
+			}
+
+			model = &models.Circle{
+				ID:   circle.ID,
+				Slug: circle.Name,
+				Name: circle.Name,
+			}
+			refreshArchiveRelsCache.Circles[circle.Name] = model
+			refreshArchiveRelsCache.Unlock()
+		}
+
+		if err := arc.SetCircle(e, false, model); err != nil {
 			log.Println(err)
 			return errs.ErrUnknown
 		}
 	}
 
 	if archive.Magazine != nil {
-		magazine, err := CreateMagazine(archive.Magazine.Name)
-		if err != nil {
-			return err
+		refreshArchiveRelsCache.RLock()
+		model, ok := refreshArchiveRelsCache.Magazines[archive.Magazine.Name]
+		refreshArchiveRelsCache.RUnlock()
+
+		if !ok {
+			refreshArchiveRelsCache.Lock()
+			magazine, err := CreateMagazine(archive.Magazine.Name)
+			if err != nil {
+				refreshArchiveRelsCache.Unlock()
+				return err
+			}
+
+			model = &models.Magazine{
+				ID:   magazine.ID,
+				Slug: magazine.Slug,
+				Name: magazine.Name,
+			}
+			refreshArchiveRelsCache.Magazines[magazine.Name] = model
+			refreshArchiveRelsCache.Unlock()
 		}
-		if err := arc.SetMagazineG(false, &models.Magazine{
-			ID:   magazine.ID,
-			Slug: magazine.Slug,
-			Name: magazine.Name,
-		}); err != nil {
+
+		if err := arc.SetMagazine(e, false, model); err != nil {
 			log.Println(err)
 			return errs.ErrUnknown
 		}
 	}
 
 	if archive.Parody != nil {
-		parody, err := CreateParody(archive.Parody.Name)
-		if err != nil {
-			return err
+		refreshArchiveRelsCache.RLock()
+		model, ok := refreshArchiveRelsCache.Parodies[archive.Parody.Name]
+		refreshArchiveRelsCache.RUnlock()
+
+		if !ok {
+			refreshArchiveRelsCache.Lock()
+			parody, err := CreateParody(archive.Parody.Name)
+			if err != nil {
+				refreshArchiveRelsCache.Unlock()
+				return err
+			}
+
+			model = &models.Parody{
+				ID:   parody.ID,
+				Slug: parody.Slug,
+				Name: parody.Name,
+			}
+			refreshArchiveRelsCache.Parodies[parody.Name] = model
+			refreshArchiveRelsCache.Unlock()
 		}
-		if err := arc.SetParodyG(false, &models.Parody{
-			ID:   parody.ID,
-			Slug: parody.Slug,
-			Name: parody.Name,
-		}); err != nil {
+
+		if err := arc.SetParody(e, false, model); err != nil {
 			log.Println(err)
 			return errs.ErrUnknown
 		}
 	}
 
-	var artists []*models.Artist
-	for _, artist := range archive.Artists {
-		artist, err := CreateArtist(artist.Name)
-		if err != nil {
-			return err
-		}
-		artists = append(artists, &models.Artist{
-			ID:   artist.ID,
-			Slug: artist.Slug,
-			Name: artist.Name,
-		})
-	}
-	if err := arc.SetArtistsG(false, artists...); err != nil {
-		log.Println(err)
-		return errs.ErrUnknown
-	}
-
 	var tags []*models.Tag
 	for _, tag := range archive.Tags {
+		refreshArchiveRelsCache.RLock()
+		model, ok := refreshArchiveRelsCache.Tags[tag.Name]
+		refreshArchiveRelsCache.RUnlock()
+
+		if ok {
+			tags = append(tags, model)
+			continue
+		}
+
+		refreshArchiveRelsCache.Lock()
 		tag, err := CreateTag(tag.Name)
 		if err != nil {
+			refreshArchiveRelsCache.Unlock()
 			return err
 		}
-		tags = append(tags, &models.Tag{
+
+		model = &models.Tag{
 			ID:   tag.ID,
 			Slug: tag.Slug,
 			Name: tag.Name,
-		})
+		}
+		refreshArchiveRelsCache.Tags[tag.Name] = model
+		refreshArchiveRelsCache.Unlock()
+
+		tags = append(tags, model)
 	}
-	if err := arc.SetTagsG(false, tags...); err != nil {
+	if err := arc.SetTags(e, false, tags...); err != nil {
 		log.Println(err)
 		return errs.ErrUnknown
 	}
@@ -367,53 +593,76 @@ func CreateArchive(archive *modext.Archive) (*modext.Archive, error) {
 		return nil, errs.ErrArchivePathRequired
 	}
 
-	stat, err := os.Stat(archive.Path)
-	if os.IsNotExist(err) {
-		log.Println(err)
-		return nil, errs.ErrArchiveNotFound
+	selectQueries := []QueryMod{
+		Where("archive.title = ?", archive.Title)}
+	if archive.Magazine != nil {
+		selectQueries = append(selectQueries,
+			InnerJoin("magazine ON magazine.id = archive.magazine_id"),
+			Where("magazine.name = ?", archive.Magazine.Name))
+	} else if len(archive.Artists) > 0 {
+		var artists []string
+		for _, artist := range archive.Artists {
+			artists = append(artists, artist.Name)
+		}
+		selectQueries = append(selectQueries,
+			InnerJoin("archive_artists artists ON archive.id = artists.archive_id"),
+			InnerJoin("artist ON artist.id = artists.artist_id"),
+			Where("artist.name IN (?)", strings.Join(artists, ",")))
+	} else if archive.Circle != nil {
+		selectQueries = append(selectQueries,
+			InnerJoin("circle ON circle.id = archive.circle_id"),
+			Where("circle.name = ?", archive.Circle.Name))
+	} else {
+		selectQueries = append(selectQueries,
+			Where("archive.path = ?", archive.Path))
 	}
 
-	arc, err := models.Archives(Where("archive.path = ?", archive.Path)).OneG()
+	arc, err := models.Archives(selectQueries...).OneG()
 	if err != nil && err != sql.ErrNoRows {
 		log.Println(err)
 		return nil, errs.ErrUnknown
-	} else if arc != nil {
-		return modext.NewArchive(arc), nil
 	}
 
-	arc = &models.Archive{
-		Path: archive.Path,
-
-		Title: archive.Title,
-		Slug:  slug.Make(archive.Title),
-		Pages: archive.Pages,
-		Size:  FormatBytes(stat.Size()),
-	}
-
-	f, err := zip.OpenReader(arc.Path)
+	tx, err := database.Conn.Begin()
 	if err != nil {
 		log.Println(err)
 		return nil, errs.ErrUnknown
 	}
 
-	for _, file := range f.File {
-		if file.FileInfo().IsDir() {
-			continue
+	var isDuplicate bool
+	if arc == nil {
+		arc = &models.Archive{
+			Title: archive.Title,
+			Slug:  archive.Slug,
 		}
-		arc.Pages++
+		if archive.CreatedAt > 0 {
+			arc.CreatedAt = time.Unix(archive.CreatedAt, 0)
+		}
+	} else {
+		isDuplicate = true
 	}
 
-	if arc.Pages > 0 {
-		d := f.File[0].FileInfo()
-		arc.CreatedAt = d.ModTime()
-		arc.UpdatedAt = arc.CreatedAt
+	arc.Path = archive.Path
+	arc.Pages = archive.Pages
+	arc.Size = archive.Size
+	if archive.UpdatedAt > 0 {
+		arc.UpdatedAt = time.Unix(archive.UpdatedAt, 0)
 	}
-	f.Close()
 
-	if err := arc.InsertG(boil.Infer()); err != nil {
+	upsert := arc.Insert
+	if isDuplicate {
+		upsert = arc.Update
+	}
+
+	if err := upsert(tx, boil.Infer()); err != nil {
 		log.Println(err)
 		return nil, errs.ErrUnknown
-	} else if err := refreshArchiveRels(arc, archive); err != nil {
+	} else if err := refreshArchiveRels(tx, arc, archive); err != nil {
+		log.Println(err)
+		return nil, errs.ErrUnknown
+	}
+
+	if err := tx.Commit(); err != nil {
 		log.Println(err)
 		return nil, errs.ErrUnknown
 	}
@@ -552,7 +801,6 @@ func (o *GetArchivesOptions) validate() {
 	} else {
 		o.Order = "desc"
 	}
-
 }
 
 func (o *GetArchivesOptions) toQueries(isOr bool) (selectQueries, countQueries []QueryMod) {
@@ -730,12 +978,12 @@ func GetArchiveCount() (int64, error) {
 	return count, nil
 }
 
-func GetArchiveStats() (size, pages uint64, err error) {
+func GetArchiveStats() (size, pages int64, err error) {
 	if c, err := Cache.Get("archive-size"); err == nil {
-		size = c.(uint64)
+		size = c.(int64)
 	}
 	if c, err := Cache.Get("archive-pages"); err == nil {
-		pages = c.(uint64)
+		pages = c.(int64)
 	}
 
 	if size > 0 && pages > 0 {
@@ -750,29 +998,8 @@ func GetArchiveStats() (size, pages uint64, err error) {
 	}
 
 	for _, archive := range archives {
-		zf, e := zip.OpenReader(archive.Path)
-		if e != nil {
-			log.Println(err)
-			err = errs.ErrUnknown
-			return
-		}
-
-		for _, f := range zf.File {
-			if f.FileInfo().IsDir() {
-				continue
-			}
-			pages++
-		}
-		zf.Close()
-
-		d, e := os.Stat(archive.Path)
-		if e != nil {
-			log.Println(e)
-			err = errs.ErrUnknown
-			return
-		}
-
-		size += uint64(d.Size())
+		pages += int64(archive.Pages)
+		size += archive.Size
 	}
 
 	Cache.Set("archive-size", size, time.Hour*24*7)

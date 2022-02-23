@@ -117,20 +117,31 @@ func ServeArchiveFile(id, index, width int, w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	zip, err := zip.OpenReader(path)
+	z, err := zip.OpenReader(path)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
-	defer zip.Close()
+	defer z.Close()
 
-	if index > len(zip.File) {
+	if index > len(z.File) {
 		w.WriteHeader(http.StatusNotFound)
 		return
 	}
 
-	file := zip.File[index]
-	d := file.FileInfo()
+	var file *zip.File
+	var d fs.FileInfo
+
+	for true {
+		file = z.File[index]
+		d = file.FileInfo()
+
+		if d.IsDir() {
+			index++
+			continue
+		}
+		break
+	}
 
 	f, err := file.Open()
 	if err != nil {
@@ -385,7 +396,13 @@ func CreateArchive(archive *modext.Archive) (*modext.Archive, error) {
 		return nil, errs.ErrUnknown
 	}
 
-	arc.Pages = int16(len(f.File))
+	for _, file := range f.File {
+		if file.FileInfo().IsDir() {
+			continue
+		}
+		arc.Pages++
+	}
+
 	if arc.Pages > 0 {
 		d := f.File[0].FileInfo()
 		arc.CreatedAt = d.ModTime()
@@ -539,7 +556,6 @@ func (o *GetArchivesOptions) validate() {
 }
 
 func (o *GetArchivesOptions) toQueries(isOr bool) (selectQueries, countQueries []QueryMod) {
-	selectQueries = append(selectQueries, GroupBy("archive.id"))
 	countQueries = append(countQueries, Select("1"))
 
 	var queries []string
@@ -607,6 +623,10 @@ func (o *GetArchivesOptions) toQueries(isOr bool) (selectQueries, countQueries [
 			args = append(args, tag)
 		}
 		queries = append(queries, fmt.Sprintf("(%s)", strings.Join(q, " OR ")))
+	}
+
+	if len(o.Artists) > 0 || len(o.Tags) > 0 {
+		selectQueries = append(selectQueries, GroupBy("archive.id"))
 	}
 
 	if len(queries) > 0 {
@@ -730,20 +750,24 @@ func GetArchiveStats() (size, pages uint64, err error) {
 	}
 
 	for _, archive := range archives {
-		var f *zip.ReadCloser
-		f, err = zip.OpenReader(archive.Path)
-		if err != nil {
+		zf, e := zip.OpenReader(archive.Path)
+		if e != nil {
 			log.Println(err)
 			err = errs.ErrUnknown
 			return
 		}
-		pages += uint64(len(f.File))
-		f.Close()
 
-		var d fs.FileInfo
-		d, err = os.Stat(archive.Path)
-		if err != nil {
-			log.Println(err)
+		for _, f := range zf.File {
+			if f.FileInfo().IsDir() {
+				continue
+			}
+			pages++
+		}
+		zf.Close()
+
+		d, e := os.Stat(archive.Path)
+		if e != nil {
+			log.Println(e)
 			err = errs.ErrUnknown
 			return
 		}

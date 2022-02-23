@@ -61,7 +61,7 @@ const initReader = () => {
   const next = document.querySelectorAll(".next") as NodeListOf<HTMLAnchorElement>;
 
   const page = reader.querySelector(".page a") as HTMLAnchorElement;
-  const img = page.querySelector("img");
+  let img = page.querySelector("img");
 
   const mutex = { current: false };
   const rect = page.getBoundingClientRect();
@@ -71,18 +71,18 @@ const initReader = () => {
   const changePage = (n: number) => {
     current = n;
 
-    page.scrollIntoView({ block: "start", inline: "start" });
+    pages.find(p => p.isViewing).isViewing = false;
+    pages[current - 1].isViewing = true;
 
-    window.requestAnimationFrame(() => {
-      pages.find(p => p.isViewing).isViewing = false;
-      pages[current - 1].isViewing = true;
+    page.href = `/archive/${id}/${slug}/${current}`;
 
-      page.href = `/archive/${id}/${slug}/${current}`;
-      img.src = `/data/${id}/${current}.jpg`;
+    const newImg = document.createElement("img");
+    newImg.src = `/data/${id}/${current}.jpg`;
+    img.replaceWith(newImg);
+    img = newImg;
 
-      currentSpans.forEach(span => (span.textContent = current.toString()));
-      window.history.replaceState(null, "", `/archive/${id}/${slug}/${current}`);
-    });
+    currentSpans.forEach(span => (span.textContent = current.toString()));
+    window.history.replaceState(null, "", `/archive/${id}/${slug}/${current}`);
 
     prev.forEach(e => {
       e.href = `/archive/${id}/${slug}/${current - 1}`;
@@ -161,13 +161,24 @@ const initReader = () => {
     mutex.current = false;
   });
 
-  const observer = new MutationObserver(() => initPreload());
-  observer.observe(page, {
-    childList: true,
-    attributes: true
-  });
+  let interval = 0;
+  const scrollIntoView = () => {
+    clearInterval(interval);
+    interval = window.setInterval(() => {
+      window.requestAnimationFrame(() => {
+        if (!img.naturalHeight) return;
+        clearInterval(interval);
+        page.scrollIntoView({ block: "start", inline: "start" });
+      });
+    }, 10);
+  };
+  scrollIntoView();
 
-  page.scrollIntoView({ block: "start", inline: "start" });
+  const observer = new MutationObserver(() => {
+    scrollIntoView();
+    initPreload();
+  });
+  observer.observe(page, { childList: true, attributes: true });
   initPreload();
 };
 

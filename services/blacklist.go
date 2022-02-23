@@ -11,8 +11,9 @@ import (
 )
 
 type Blacklist struct {
-	Archives map[string]bool
-	Artists  map[string]bool
+	Archives  map[string]bool
+	ArchivesP []string
+	Artists   map[string]bool
 
 	once sync.Once
 }
@@ -57,6 +58,8 @@ func initBlacklist() {
 				blacklist.Artists[v] = true
 			} else if t == "title" {
 				blacklist.Archives[v] = true
+			} else if t == "title*" {
+				blacklist.ArchivesP = append(blacklist.ArchivesP, v)
 			}
 		}
 

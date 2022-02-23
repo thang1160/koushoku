@@ -1883,14 +1883,6 @@ func (o *Archive) Insert(exec boil.Executor, columns boil.Columns) error {
 	}
 
 	var err error
-	currTime := time.Now().In(boil.GetLocation())
-
-	if o.CreatedAt.IsZero() {
-		o.CreatedAt = currTime
-	}
-	if o.UpdatedAt.IsZero() {
-		o.UpdatedAt = currTime
-	}
 
 	if err := o.doBeforeInsertHooks(exec); err != nil {
 		return err
@@ -1971,10 +1963,6 @@ func (o *Archive) UpdateG(columns boil.Columns) error {
 // See boil.Columns.UpdateColumnSet documentation to understand column list inference for updates.
 // Update does not automatically update the record in case of default values. Use .Reload() to refresh the records.
 func (o *Archive) Update(exec boil.Executor, columns boil.Columns) error {
-	currTime := time.Now().In(boil.GetLocation())
-
-	o.UpdatedAt = currTime
-
 	var err error
 	if err = o.doBeforeUpdateHooks(exec); err != nil {
 		return err
@@ -1989,10 +1977,6 @@ func (o *Archive) Update(exec boil.Executor, columns boil.Columns) error {
 			archiveAllColumns,
 			archivePrimaryKeyColumns,
 		)
-
-		if !columns.IsWhitelist() {
-			wl = strmangle.SetComplement(wl, []string{"created_at"})
-		}
 		if len(wl) == 0 {
 			return errors.New("models: unable to update archive, could not build whitelist")
 		}
@@ -2103,12 +2087,6 @@ func (o *Archive) Upsert(exec boil.Executor, updateOnConflict bool, conflictColu
 	if o == nil {
 		return errors.New("models: no archive provided for upsert")
 	}
-	currTime := time.Now().In(boil.GetLocation())
-
-	if o.CreatedAt.IsZero() {
-		o.CreatedAt = currTime
-	}
-	o.UpdatedAt = currTime
 
 	if err := o.doBeforeUpsertHooks(exec); err != nil {
 		return err

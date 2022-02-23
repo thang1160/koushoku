@@ -245,29 +245,19 @@ func populateArchive(archive *modext.Archive) error {
 		}
 	}
 
-	archive.Slug = slug.Make(title)
-	if len(circle) > 0 {
-		archive.Circle = &modext.Circle{
-			Slug: slug.Make(circle),
-			Name: circle,
+	t := strings.ToLower(title)
+	if _, ok := blacklist.Archives[t]; ok {
+		return nil
+	} else {
+		for _, v := range blacklist.ArchivesP {
+			if strings.HasPrefix(t, v) {
+				return nil
+			}
 		}
 	}
 
-	if len(magazine) > 0 {
-		archive.Magazine = &modext.Magazine{Name: magazine}
-	}
-
-	archive.Artists = make([]*modext.Artist, len(artists))
-	for i, artist := range artists {
-		archive.Artists[i] = &modext.Artist{Name: artist}
-	}
-
-	if _, ok := blacklist.Archives[strings.ToLower(archive.Title)]; ok {
-		return nil
-	}
-
-	for _, artist := range archive.Artists {
-		if _, ok := blacklist.Artists[strings.ToLower(artist.Name)]; ok {
+	for _, v := range artists {
+		if _, ok := blacklist.Artists[strings.ToLower(v)]; ok {
 			return nil
 		}
 	}
@@ -305,7 +295,21 @@ func populateArchive(archive *modext.Archive) error {
 	if archive.Pages < 3 {
 		return nil
 	}
+
 	archive.Title = title
+
+	if len(circle) > 0 {
+		archive.Circle = &modext.Circle{Name: circle}
+	}
+
+	if len(magazine) > 0 {
+		archive.Magazine = &modext.Magazine{Name: magazine}
+	}
+
+	archive.Artists = make([]*modext.Artist, len(artists))
+	for i, artist := range artists {
+		archive.Artists[i] = &modext.Artist{Name: artist}
+	}
 
 	metadata, ok := metadataMap.Map[fileName]
 	if !ok {
@@ -317,6 +321,27 @@ func populateArchive(archive *modext.Archive) error {
 		archive.Tags = append(archive.Tags, &modext.Tag{Name: tag})
 	}
 	return nil
+}
+
+var pBlacklist = []string{
+	"/cover",
+	"/doujin",
+	"/illustration",
+	"/interview",
+	"/non-h",
+	"/spread",
+	"/western",
+	"Key-Visual Collection",
+	"Kairakuten Cover",
+}
+
+func isBlacklisted(path string) bool {
+	for _, p := range pBlacklist {
+		if strings.Contains(path, p) {
+			return true
+		}
+	}
+	return !(strings.HasSuffix(path, ".zip") || strings.HasSuffix(path, ".cbz"))
 }
 
 func IndexArchives() {
@@ -331,14 +356,7 @@ func IndexArchives() {
 
 	var files []string
 	walkFn := func(path string, info fs.FileInfo, err error) error {
-		if err != nil || info.IsDir() ||
-			strings.Contains(path, "/cover") || strings.Contains(path, "/doujin") ||
-			strings.Contains(path, "/illustration") || strings.Contains(path, "/interview") ||
-			strings.Contains(path, "/non-h") || strings.Contains(path, "/spread") ||
-			strings.Contains(path, "/western") ||
-			!(strings.HasSuffix(path, ".zip") || strings.HasSuffix(path, ".cbz")) ||
-			strings.Contains(path, "Key-Visual Collection") ||
-			strings.Contains(path, "Kairakuten Cover") {
+		if err != nil || info.IsDir() || isBlacklisted(path) {
 			return err
 		}
 
@@ -359,6 +377,7 @@ func IndexArchives() {
 		close(c)
 	}()
 
+	var archives []*modext.Archive
 	for _, path := range files {
 		c <- true
 
@@ -369,19 +388,39 @@ func IndexArchives() {
 			}()
 
 			archive := &modext.Archive{Path: path}
+			log.Println("Populating archive", filepath.Base(path))
 			if err := populateArchive(archive); err != nil {
 				log.Fatalln(err)
 			}
 
 			if len(archive.Title) > 0 {
-				log.Println("Indexing archive", filepath.Base(archive.Path))
-				c, err := CreateArchive(archive)
-				if c != nil && err == nil {
-					CreateArchiveSymlink(c)
-				}
+				archives = append(archives, archive)
 			}
 		}(path)
 	}
+	wg.Wait()
+
+	sort.SliceStable(archives, func(i, j int) bool {
+		return archives[i].CreatedAt < archives[j].CreatedAt
+	})
+
+	wg.Add(len(archives))
+	for _, archive := range archives {
+		c <- true
+		go func(archive *modext.Archive) {
+			defer func() {
+				wg.Done()
+				<-c
+			}()
+
+			log.Println("Indexing archive", filepath.Base(archive.Path))
+			c, err := CreateArchive(archive)
+			if c != nil && err == nil {
+				CreateArchiveSymlink(c)
+			}
+		}(archive)
+	}
+
 	wg.Wait()
 }
 
@@ -394,12 +433,21 @@ func ModerateArchives() {
 	}
 
 	for _, archive := range archives {
-		_, remove := blacklist.Archives[strings.ToLower(archive.Title)]
+		title := strings.ToLower(archive.Title)
+		_, remove := blacklist.Archives[title]
 		if archive.R != nil && len(archive.R.Artists) > 0 {
 			for _, artist := range archive.R.Artists {
 				if _, ok := blacklist.Artists[strings.ToLower(artist.Name)]; ok {
 					artist.DeleteG()
 					remove = true
+				}
+			}
+		}
+		if !remove {
+			for _, t := range blacklist.ArchivesP {
+				if strings.HasPrefix(title, t) {
+					remove = true
+					break
 				}
 			}
 		}
@@ -595,11 +643,7 @@ func CreateArchive(archive *modext.Archive) (*modext.Archive, error) {
 
 	selectQueries := []QueryMod{
 		Where("archive.title = ?", archive.Title)}
-	if archive.Magazine != nil {
-		selectQueries = append(selectQueries,
-			InnerJoin("magazine ON magazine.id = archive.magazine_id"),
-			Where("magazine.name = ?", archive.Magazine.Name))
-	} else if len(archive.Artists) > 0 {
+	if archive.Artists != nil {
 		var artists []string
 		for _, artist := range archive.Artists {
 			artists = append(artists, artist.Name)
@@ -608,6 +652,10 @@ func CreateArchive(archive *modext.Archive) (*modext.Archive, error) {
 			InnerJoin("archive_artists artists ON archive.id = artists.archive_id"),
 			InnerJoin("artist ON artist.id = artists.artist_id"),
 			Where("artist.name IN (?)", strings.Join(artists, ",")))
+	} else if archive.Magazine != nil {
+		selectQueries = append(selectQueries,
+			InnerJoin("magazine ON magazine.id = archive.magazine_id"),
+			Where("magazine.name = ?", archive.Magazine.Name))
 	} else if archive.Circle != nil {
 		selectQueries = append(selectQueries,
 			InnerJoin("circle ON circle.id = archive.circle_id"),
@@ -633,21 +681,20 @@ func CreateArchive(archive *modext.Archive) (*modext.Archive, error) {
 	if arc == nil {
 		arc = &models.Archive{
 			Title: archive.Title,
-			Slug:  archive.Slug,
+			Slug:  slug.Make(archive.Title),
 		}
 		if archive.CreatedAt > 0 {
 			arc.CreatedAt = time.Unix(archive.CreatedAt, 0)
+			arc.UpdatedAt = arc.CreatedAt
 		}
 	} else {
 		isDuplicate = true
+		arc.UpdatedAt = time.Unix(archive.CreatedAt, 0)
 	}
 
 	arc.Path = archive.Path
 	arc.Pages = archive.Pages
 	arc.Size = archive.Size
-	if archive.UpdatedAt > 0 {
-		arc.UpdatedAt = time.Unix(archive.UpdatedAt, 0)
-	}
 
 	upsert := arc.Insert
 	if isDuplicate {

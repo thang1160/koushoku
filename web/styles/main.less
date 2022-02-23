@@ -244,6 +244,8 @@ body {
 
   > * {
     width: 100%;
+    padding-left: 2rem;
+    padding-right: 2rem;
   }
 
   > header,
@@ -254,29 +256,29 @@ body {
 
   > header {
     position: relative;
-    padding: 1rem 2rem;
+    padding-top: 1.7rem;
+    padding-bottom: 1.7rem;
 
     nav {
       ul {
         font-size: 0;
 
-        position: relative;
         vertical-align: top;
         display: inline-block;
-        margin: 0 -1.2rem;
+        margin: 0 -0.8rem;
 
         li {
           display: inline-block;
 
           a {
-            font-size: 2rem;
+            font-size: @fs;
             font-weight: 600;
 
             text-transform: uppercase;
             letter-spacing: 0.075rem;
 
             display: block;
-            padding: 1.2rem;
+            padding: 1rem 0.8rem;
           }
         }
       }
@@ -288,9 +290,8 @@ body {
         background-color: @bg-secondary;
 
         font-size: 0;
-
         float: right;
-        margin-top: 0.6rem;
+        margin-top: 0.1rem;
 
         &:hover,
         &:focus-within {
@@ -301,9 +302,7 @@ body {
         @sz: 3.6rem;
         input,
         button {
-          font-size: 1.6rem;
-          line-height: 2rem;
-
+          font-size: @fs;
           vertical-align: top;
           display: inline-block;
           height: @sz;
@@ -326,6 +325,13 @@ body {
           width: calc(100% - @sz);
         }
       }
+    }
+  }
+
+  > main {
+    flex: 1 0;
+    > section + section {
+      margin-top: 2rem;
     }
   }
 
@@ -360,23 +366,15 @@ body > #error {
   }
 }
 
-#stats {
-  padding: 2rem;
+#welcome {
+  box-shadow: 0 0 1rem fade(#000, 25%);
+  border: 0.1rem solid lighten(@bg-secondary, 4%);
+  border-radius: 0.5rem;
+  background-color: @bg-secondary;
 
-  table {
-    font-size: 1.6rem;
-    line-height: 2.4rem;
+  line-height: 2.4rem;
+  text-align: center;
 
-    td {
-      vertical-align: top;
-      &:first-child {
-        padding-right: 2rem;
-      }
-    }
-  }
-}
-
-.feed {
   padding: 1rem;
 }
 
@@ -394,16 +392,17 @@ body > #error {
 
 .feed > header {
   text-align: center;
-  margin-bottom: 1rem;
+  margin-bottom: 2rem;
 
   h2 {
-    font-size: 2.4rem;
-    line-height: 2.8rem;
+    font-size: 2rem;
+    line-height: 2.4rem;
   }
 }
 
 .feed .entries {
   font-size: 0;
+  margin: -1rem;
 }
 
 .feed .entry {
@@ -507,7 +506,7 @@ body > #error {
 .feed#archives .entry > a > .metadata {
   color: darken(@text, 15%);
   text-align: center;
-  margin-top: 0.4rem;
+  margin-top: 0.6rem;
 }
 
 .feed#archives .entry a:hover .metadata,
@@ -516,8 +515,7 @@ body > #error {
 }
 
 .feed#archives .entry .title {
-  font-size: 1.6rem;
-  line-height: 2rem;
+  font-size: @fs;
   color: @text;
 
   &:not(:last-child) {
@@ -582,7 +580,7 @@ body > #error {
 
 .pagination {
   &:not(:last-child) {
-    margin-bottom: 1rem;
+    margin-bottom: 2rem;
   }
 
   &:last-child {
@@ -599,7 +597,7 @@ body > #error {
     display: inline-block;
 
     a {
-      font-size: 2rem;
+      font-size: @fs;
       font-weight: 600;
 
       display: block;
@@ -650,26 +648,27 @@ body > #error {
   height: 0;
   padding-top: calc(3 / 2 * 100%);
 
-  img {
+  a {
     position: absolute;
     top: 0;
     left: 0;
     width: 100%;
+    height: 100%;
   }
 }
 
 #archive .title {
-  font-size: 2rem;
-  line-height: 2.4rem;
-  margin-bottom: 1rem;
+  font-size: @fs;
+  line-height: 2rem;
+  margin-bottom: 0.4rem;
 }
 
 #archive .metadata {
-  margin-top: 2rem;
+  margin-top: 1rem;
 }
 
 #archive table {
-  font-size: 1.6rem;
+  font-size: @fs;
   line-height: 2.4rem;
 
   width: 100%;
@@ -764,28 +763,41 @@ body > #error {
   text-align: center;
   font-size: 0;
 
-  flex: 1 0;
   display: flex;
   flex-direction: column;
 
-  h1 {
-    font-size: 1.6rem;
-    margin-bottom: 1rem;
+  > * {
+    padding-left: 0;
+    padding-right: 0;
+    max-width: initial;
+  }
+
+  header {
+    padding: 0;
+  }
+
+  nav {
+    box-shadow: 0 0 1rem fade(#000, 25%);
+    border: 0.1rem solid lighten(@bg-secondary, 4%);
+    background-color: @bg-secondary;
+
+    position: relative;
+    padding: 0;
+
+    > * {
+      font-size: 1.6rem;
+      display: inline-block;
+      vertical-align: top;
+
+      padding: 0.8rem 1.2rem;
+    }
   }
 }
 
-#reader nav {
-  border: 0 solid lighten(@bg-secondary, 4%);
-  border-width: 0.1rem 0;
-  background-color: @bg-secondary;
-
-  > * {
-    font-size: 1.6rem;
-    display: inline-block;
-    vertical-align: top;
-
-    padding: 0.8rem 1.2rem;
-  }
+#reader nav .back {
+  position: absolute;
+  top: 0;
+  left: 0;
 }
 
 #reader .current,
@@ -794,12 +806,44 @@ body > #error {
 }
 
 #reader .page {
-  flex: 1 0;
+  position: relative;
+  display: flex;
+  max-width: 144rem;
   min-height: 20rem;
 
   a {
     display: block;
     width: 100%;
+    margin: auto;
+  }
+}
+
+#stats {
+  line-height: 2.4rem;
+  max-width: 76rem;
+
+  table {
+    border-collapse: collapse;
+    width: 100%;
+
+    tr {
+      padding: 0.6rem;
+      &:not(:first-child) {
+        border-top: 0.1rem solid lighten(@bg-secondary, 4%);
+      }
+
+      td {
+        vertical-align: top;
+        padding: 1rem;
+
+        &:first-child {
+          padding-left: 0;
+        }
+        &:last-child {
+          padding-right: 0;
+        }
+      }
+    }
   }
 }
 
@@ -815,7 +859,7 @@ body > #error {
   }
 }
 
-@media (max-width: 768px) {
+@media (max-width: 832px) {
   body > header nav {
     text-align: center;
     form {

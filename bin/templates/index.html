@@ -6,13 +6,6 @@
       {{- template "header" . }}
       <main>
         <section class="feed" id="archives">
-          <header>
-            {{- if gt .page 1 }}
-              <h2>Browse Archives</h2>
-            {{- else }}
-              <h2>Latest Archives</h2>
-            {{- end }}
-          </header>
           {{- if .archives }}
             {{- template "pagination" . }}
             {{- template "feed" . }}

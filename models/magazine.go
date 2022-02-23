@@ -772,10 +772,6 @@ func (o *Magazine) Update(exec boil.Executor, columns boil.Columns) error {
 			magazineAllColumns,
 			magazinePrimaryKeyColumns,
 		)
-
-		if !columns.IsWhitelist() {
-			wl = strmangle.SetComplement(wl, []string{"created_at"})
-		}
 		if len(wl) == 0 {
 			return errors.New("models: unable to update magazine, could not build whitelist")
 		}

@@ -37,7 +37,7 @@ var (
 	ArchiveRels = models.ArchiveRels
 )
 
-func checkArchiveThumbnail(id, index, width int, w http.ResponseWriter, r *http.Request) (string, bool) {
+func checkArchiveFileThumbnail(id, index, width int, w http.ResponseWriter, r *http.Request) (string, bool) {
 	var fp string
 	if width > 0 && width <= 1024 && width%128 == 0 {
 		fp = filepath.Join(Config.Directories.Thumbnails, fmt.Sprintf("%d-%d.%d.jpg", id, index+1, width))
@@ -104,7 +104,7 @@ func ServeArchive(id int64, w http.ResponseWriter, r *http.Request) {
 }
 
 func ServeArchiveFile(id, index, width int, w http.ResponseWriter, r *http.Request) {
-	fp, ok := checkArchiveThumbnail(id, index, width, w, r)
+	fp, ok := checkArchiveFileThumbnail(id, index, width, w, r)
 	if ok {
 		return
 	}

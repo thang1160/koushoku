@@ -4,8 +4,6 @@ import (
 	"log"
 	"os"
 
-	. "koushoku/config"
-
 	"koushoku/database"
 	"koushoku/services"
 
@@ -27,9 +25,10 @@ var opts struct {
 	Batches     bool   `long:"batches" description:"Download batches"`
 	BatchesPath string `long:"batches-path" description:"Path to file containing batch releases (optional)"`
 
-	Moderate bool `long:"moderate" description:"Moderate all archives (blacklist)"`
-	Purge    bool `long:"purge" description:"Purge symlinks"`
-	Index    bool `long:"index" description:"Index archives"`
+	Moderate        bool `long:"moderate" description:"Moderate all archives (blacklist)"`
+	Purge           bool `long:"purge" description:"Purge symlinks"`
+	PurgeThumbnails bool `long:"purge-thumbnails" description:"Purge thumbnails"`
+	Index           bool `long:"index" description:"Index archives"`
 
 	ScrapeMetadata bool `long:"scrape-metadata" description:"Scrape metadata of all archives from you-know-where"`
 	ImportMetadata bool `long:"import-metadata" description:"Import archives metadata from metadata.json"`
@@ -83,6 +82,11 @@ func main() {
 		services.PurgeArchiveSymlinks()
 	}
 
+	if opts.PurgeThumbnails {
+		log.Println("Purging thumbnails...")
+		services.PurgeArchiveThumbnails()
+	}
+
 	if opts.Index {
 		log.Println("Indexing archives...")
 		services.IndexArchives()
@@ -109,7 +113,7 @@ func main() {
 
 	if opts.Moderate {
 		log.Println("Moderating archives...")
-		services.ModerateArchives(Config.Paths.Blacklist)
+		services.ModerateArchives()
 	}
 
 	if opts.PublishAll {

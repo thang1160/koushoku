@@ -9,7 +9,6 @@ require (
 	github.com/friendsofgo/errors v0.9.2
 	github.com/gin-contrib/gzip v0.0.5
 	github.com/gin-gonic/gin v1.7.7
-	github.com/google/go-querystring v1.1.0
 	github.com/gosimple/slug v1.12.0
 	github.com/h2non/bimg v1.1.6
 	github.com/jackc/pgx/v4 v4.15.0
@@ -18,7 +17,6 @@ require (
 	github.com/volatiletech/null/v8 v8.1.2
 	github.com/volatiletech/sqlboiler/v4 v4.8.6
 	github.com/volatiletech/strmangle v0.0.1
-	golang.org/x/net v0.0.0-20210916014120-12bc252f5db8
 	gopkg.in/ini.v1 v1.63.2
 )
 
@@ -97,6 +95,7 @@ require (
 	github.com/volatiletech/randomize v0.0.1 // indirect
 	go.etcd.io/bbolt v1.3.6 // indirect
 	golang.org/x/crypto v0.0.0-20210817164053-32db794688a5 // indirect
+	golang.org/x/net v0.0.0-20210916014120-12bc252f5db8 // indirect
 	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c // indirect
 	golang.org/x/sys v0.0.0-20211023085530-d6a326fbbf70 // indirect
 	golang.org/x/text v0.3.6 // indirect

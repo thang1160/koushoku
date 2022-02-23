@@ -2,6 +2,7 @@ package services
 
 import (
 	"log"
+	"math"
 )
 
 type Stats struct {
@@ -12,10 +13,10 @@ type Stats struct {
 	ParodyCount   int64
 	TagCount      int64
 
-	PageCount        uint64
-	AveragePageCount uint64
-	Size             uint64
-	AverageSize      uint64
+	PageCount        int64
+	AveragePageCount int64
+	Size             int64
+	AverageSize      int64
 }
 
 var stats Stats
@@ -62,9 +63,14 @@ func AnalyzeStats() (err error) {
 		return
 	}
 
-	stats.AveragePageCount = stats.PageCount / uint64(stats.ArchiveCount)
-	stats.AverageSize = stats.Size / uint64(stats.ArchiveCount)
-
+	if stats.ArchiveCount > 0 {
+		if stats.PageCount > 0 {
+			stats.AveragePageCount = int64(math.Round(float64(stats.PageCount) / float64(stats.ArchiveCount)))
+		}
+		if stats.Size > 0 {
+			stats.AverageSize = int64(math.Round(float64(stats.Size) / float64(stats.ArchiveCount)))
+		}
+	}
 	return
 }
 

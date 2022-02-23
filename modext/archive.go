@@ -1,9 +1,6 @@
 package modext
 
 import (
-	"regexp"
-	"strings"
-
 	"koushoku/models"
 )
 
@@ -18,7 +15,7 @@ type Archive struct {
 	Title string `json:"title"`
 	Slug  string `json:"slug"`
 	Pages int16  `json:"pages,omitempty"`
-	Size  string `json:"size,omitempty"`
+	Size  int64  `json:"size,omitempty"`
 
 	Circle   *Circle   `json:"circle,omitempty"`
 	Magazine *Magazine `json:"magazine,omitempty"`
@@ -30,177 +27,97 @@ type Archive struct {
 	Thumbnail string `json:"thumbnail,omitempty"`
 }
 
-func NewArchive(archive *models.Archive) *Archive {
-	if archive == nil {
+func NewArchive(model *models.Archive) *Archive {
+	if model == nil {
 		return nil
 	}
 
-	c := &Archive{
-		ID:   archive.ID,
-		Path: archive.Path,
+	archive := &Archive{
+		ID:   model.ID,
+		Path: model.Path,
 
-		CreatedAt: archive.CreatedAt.Unix(),
-		UpdatedAt: archive.UpdatedAt.Unix(),
+		CreatedAt: model.CreatedAt.Unix(),
+		UpdatedAt: model.UpdatedAt.Unix(),
 
-		Title: archive.Title,
-		Slug:  archive.Slug,
-		Pages: archive.Pages,
-		Size:  archive.Size,
+		Title: model.Title,
+		Slug:  model.Slug,
+		Pages: model.Pages,
+		Size:  model.Size,
 	}
 
-	if archive.PublishedAt.Valid {
-		c.PublishedAt = archive.PublishedAt.Time.Unix()
+	if model.PublishedAt.Valid {
+		archive.PublishedAt = model.PublishedAt.Time.Unix()
 	}
 
-	return c
+	return archive
 }
 
-func (c *Archive) LoadRels(archive *models.Archive) *Archive {
-	if archive == nil || archive.R == nil {
-		return c
+func (archive *Archive) LoadRels(model *models.Archive) *Archive {
+	if model == nil || model.R == nil {
+		return archive
 	}
 
-	c.LoadArtists(archive)
-	c.LoadCircle(archive)
-	c.LoadMagazine(archive)
-	c.LoadParody(archive)
-	c.LoadTags(archive)
+	archive.LoadArtists(model)
+	archive.LoadCircle(model)
+	archive.LoadMagazine(model)
+	archive.LoadParody(model)
+	archive.LoadTags(model)
 
-	return c
+	return archive
 }
 
-func (c *Archive) LoadArtists(archive *models.Archive) *Archive {
-	if archive == nil || archive.R == nil || len(archive.R.Artists) == 0 {
-		return c
+func (archive *Archive) LoadArtists(model *models.Archive) *Archive {
+	if model == nil || model.R == nil || len(model.R.Artists) == 0 {
+		return archive
 	}
 
-	c.Artists = make([]*Artist, len(archive.R.Artists))
-	for i, artist := range archive.R.Artists {
-		c.Artists[i] = NewArtist(artist)
+	archive.Artists = make([]*Artist, len(model.R.Artists))
+	for i, artist := range model.R.Artists {
+		archive.Artists[i] = NewArtist(artist)
 	}
 
-	return c
+	return archive
 }
 
-func (c *Archive) LoadCircle(archive *models.Archive) *Archive {
-	if archive == nil || archive.R == nil || archive.R.Circle == nil {
-		return c
+func (archive *Archive) LoadCircle(model *models.Archive) *Archive {
+	if model == nil || model.R == nil || model.R.Circle == nil {
+		return archive
 	}
 
-	c.Circle = NewCircle(archive.R.Circle)
+	archive.Circle = NewCircle(model.R.Circle)
 
-	return c
+	return archive
 }
 
-func (c *Archive) LoadMagazine(archive *models.Archive) *Archive {
-	if archive == nil || archive.R == nil || archive.R.Magazine == nil {
-		return c
+func (archive *Archive) LoadMagazine(model *models.Archive) *Archive {
+	if model == nil || model.R == nil || model.R.Magazine == nil {
+		return archive
 	}
 
-	c.Magazine = NewMagazine(archive.R.Magazine)
+	archive.Magazine = NewMagazine(model.R.Magazine)
 
-	return c
+	return archive
 }
 
-func (c *Archive) LoadParody(archive *models.Archive) *Archive {
-	if archive == nil || archive.R == nil || archive.R.Parody == nil {
-		return c
+func (archive *Archive) LoadParody(model *models.Archive) *Archive {
+	if model == nil || model.R == nil || model.R.Parody == nil {
+		return archive
 	}
 
-	c.Parody = NewParody(archive.R.Parody)
+	archive.Parody = NewParody(model.R.Parody)
 
-	return c
+	return archive
 }
 
-func (c *Archive) LoadTags(archive *models.Archive) *Archive {
-	if archive == nil || archive.R == nil || len(archive.R.Tags) == 0 {
-		return c
+func (archive *Archive) LoadTags(model *models.Archive) *Archive {
+	if model == nil || model.R == nil || len(model.R.Tags) == 0 {
+		return archive
 	}
 
-	c.Tags = make([]*Tag, len(archive.R.Tags))
-	for i, tag := range archive.R.Tags {
-		c.Tags[i] = NewTag(tag)
+	archive.Tags = make([]*Tag, len(model.R.Tags))
+	for i, tag := range model.R.Tags {
+		archive.Tags[i] = NewTag(tag)
 	}
 
-	return c
-}
-
-var rgx = regexp.MustCompile(`(\(|\[)?[^\(\[\]\)]+(\)|\])?`)
-
-func (c *Archive) FormatFromString(v string) {
-	matches := rgx.FindAllString(v, -1)
-	if len(matches) == 0 {
-		return
-	}
-
-	var artists []string
-	var circle, title, magazine string
-
-	for i, match := range matches {
-		match = strings.TrimSpace(match)
-		if len(match) == 0 {
-			continue
-		}
-
-		if i == 0 && strings.HasPrefix(match, "[") {
-			match = strings.TrimPrefix(match, "[")
-			match = strings.TrimSuffix(match, "]")
-
-			artists = append(artists, match)
-			continue
-		}
-
-		if i == 1 && strings.HasPrefix(match, "(") {
-			match = strings.TrimPrefix(match, "(")
-			match = strings.TrimSuffix(match, ")")
-
-			if len(artists) > 0 {
-				circle = artists[0]
-				artists = artists[1:]
-			}
-
-			names := strings.Split(match, ",")
-			for _, name := range names {
-				artists = append(artists, strings.TrimSpace(name))
-			}
-			continue
-		}
-
-		if (i == 2 || i == 3) && strings.HasPrefix(match, "(") {
-			match = strings.TrimPrefix(match, "(")
-			match = strings.TrimSuffix(match, ")")
-
-			if i < len(matches)-1 {
-				next := matches[i+1]
-				if len(next) > 0 && !(strings.HasPrefix(match, "(") || strings.HasSuffix(match, "[")) {
-					continue
-				}
-			}
-
-			if strings.HasPrefix(match, "x") || strings.EqualFold(match, "temp") ||
-				strings.EqualFold(match, "strong") || strings.EqualFold(match, "complete") {
-				continue
-			}
-
-			magazine = match
-			continue
-		}
-
-		if i == 1 || i == 2 {
-			title = strings.TrimSuffix(match, ".zip")
-		}
-	}
-
-	c.Title = title
-	if len(circle) > 0 {
-		c.Circle = &Circle{Name: circle}
-	}
-	if len(magazine) > 0 {
-		c.Magazine = &Magazine{Name: magazine}
-	}
-
-	c.Artists = make([]*Artist, len(artists))
-	for i, artist := range artists {
-		c.Artists[i] = &Artist{Name: artist}
-	}
+	return archive
 }

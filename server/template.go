@@ -37,7 +37,7 @@ func LoadTemplates() {
 	defer mu.Unlock()
 
 	var files []string
-	err := filepath.Walk(filepath.Join(Config.Directories.Root, "templates"),
+	err := filepath.Walk(filepath.Join(Config.Directories.Templates),
 		func(path string, info fs.FileInfo, err error) error {
 			if info == nil || err != nil {
 				return err

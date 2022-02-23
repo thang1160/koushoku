@@ -54,7 +54,7 @@ CREATE TABLE IF NOT EXISTS archive (
   title             VARCHAR(1024) NOT NULL DEFAULT NULL,
   slug              VARCHAR(1024) NOT NULL DEFAULT NULL,
   pages             SMALLINT NOT NULL DEFAULT NULL,
-  size              VARCHAR(16) NOT NULL DEFAULT NULL,
+  size              BIGINT NOT NULL DEFAULT NULL,
 
   circle_id         BIGINT DEFAULT NULL REFERENCES circle(id) ON DELETE SET NULL,
   magazine_id       BIGINT DEFAULT NULL REFERENCES magazine(id) ON DELETE SET NULL,

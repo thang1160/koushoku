@@ -14,6 +14,7 @@ import (
 
 	. "koushoku/config"
 
+	"koushoku/database"
 	"koushoku/models"
 	"koushoku/modext"
 
@@ -23,9 +24,86 @@ import (
 	. "github.com/volatiletech/sqlboiler/v4/queries/qm"
 )
 
+type MetadataMap struct {
+	Map  map[string]*Metadata
+	once sync.Once
+}
+
 type Metadata struct {
 	Parody string
 	Tags   []string
+}
+
+var metadataMap MetadataMap
+
+func initMetadata() {
+	metadataMap.once.Do(func() {
+		metadataMap.Map = make(map[string]*Metadata)
+		path := filepath.Join(Config.Paths.Metadata)
+		if _, err := os.Stat(path); os.IsNotExist(err) {
+			return
+		}
+
+		buf, err := os.ReadFile(path)
+		if err != nil {
+			log.Println(err)
+			return
+		}
+
+		if err := json.Unmarshal(buf, &metadataMap.Map); err != nil {
+			log.Println(err)
+		}
+	})
+}
+
+func ImportMetadata() {
+	initMetadata()
+
+	archives, err := models.Archives(
+		Load(ArchiveRels.Artists),
+		Load(ArchiveRels.Circle),
+		Load(ArchiveRels.Magazine),
+		Load(ArchiveRels.Parody),
+		Load(ArchiveRels.Tags),
+	).AllG()
+	if err != nil {
+		log.Fatalln(err)
+	}
+
+	tx, err := database.Conn.Begin()
+	if err != nil {
+		log.Fatalln(err)
+	}
+
+	for _, arc := range archives {
+		if arc.R != nil && (arc.R.Parody != nil || len(arc.R.Tags) > 0) {
+			continue
+		}
+
+		fileName := filepath.Base(arc.Path)
+		metadata, ok := metadataMap.Map[fileName]
+		if !ok {
+			continue
+		}
+
+		log.Println("Importing metadata of", fileName)
+		archive := modext.NewArchive(arc).LoadRels(arc)
+
+		archive.Parody = &modext.Parody{Name: metadata.Parody}
+		archive.Tags = make([]*modext.Tag, len(metadata.Tags))
+
+		for i, tag := range metadata.Tags {
+			archive.Tags[i] = &modext.Tag{Name: tag}
+		}
+
+		if err := refreshArchiveRels(tx, arc, archive); err != nil {
+			log.Fatalln(err)
+		}
+	}
+
+	if err := tx.Commit(); err != nil {
+		log.Fatalln(err)
+	}
 }
 
 var wBaseURL string
@@ -37,7 +115,7 @@ var wSelectorSecondary string
 var wSelectorTertiary string
 var wSelectorQuaternary string
 
-func init() {
+func decodeStrings() {
 	// Strings are encoded in base64 to avoid search engines
 	doNotIndex := "WVVoU01HTklUVFpNZVRrelpETmpkVnB0Um5KaE0xVjFZbTFXTUE9PQ=="
 	for !strings.HasPrefix(doNotIndex, "http") {
@@ -95,61 +173,12 @@ func init() {
 	wSelectorQuaternary = string(buf)
 }
 
-func ImportMetadata() {
-	path := filepath.Join(Config.Directories.Root, "metadata.json")
-	if _, err := os.Stat(path); os.IsNotExist(err) {
-		return
-	}
-
-	buf, err := os.ReadFile(path)
-	if err != nil {
-		log.Fatalln(err)
-	}
-
-	metadatas := make(map[string]*Metadata)
-	if err := json.Unmarshal(buf, &metadatas); err != nil {
-		log.Fatalln(err)
-	}
-
-	archives, err := models.Archives(
-		Load(ArchiveRels.Artists),
-		Load(ArchiveRels.Circle),
-		Load(ArchiveRels.Magazine),
-		Load(ArchiveRels.Parody),
-		Load(ArchiveRels.Tags),
-	).AllG()
-	if err != nil {
-		log.Fatalln(err)
-	}
-
-	for _, arc := range archives {
-		if arc.R != nil && (arc.R.Parody != nil || len(arc.R.Tags) > 0) {
-			continue
-		}
-
-		fileName := filepath.Base(arc.Path)
-		metadata, ok := metadatas[fileName]
-		if !ok {
-			continue
-		}
-
-		log.Println("Importing metadata of", fileName)
-		archive := modext.NewArchive(arc).LoadRels(arc)
-
-		archive.Parody = &modext.Parody{Name: metadata.Parody}
-		archive.Tags = make([]*modext.Tag, len(metadata.Tags))
-
-		for i, tag := range metadata.Tags {
-			archive.Tags[i] = &modext.Tag{Name: tag}
-		}
-
-		if err := refreshArchiveRels(arc, archive); err != nil {
-			log.Fatalln(err)
-		}
-	}
-}
-
 func ScrapeMetadata() {
+	initMetadata()
+	if len(wBaseURL) == 0 {
+		decodeStrings()
+	}
+
 	archives, err := models.Archives(
 		Load(ArchiveRels.Parody),
 		Load(ArchiveRels.Tags),
@@ -170,7 +199,6 @@ func ScrapeMetadata() {
 	var wg sync.WaitGroup
 	wg.Add(total)
 
-	metadatas := make(map[string]*Metadata)
 	for i, archive := range archives {
 		c <- true
 
@@ -185,6 +213,10 @@ func ScrapeMetadata() {
 			}
 
 			fileName := filepath.Base(archive.Path)
+			if _, ok := metadataMap.Map[fileName]; ok {
+				return
+			}
+
 			log.Println(fileName) // DO NOT DELETE; intentional
 
 			u := fmt.Sprintf("%s/search/%s", wBaseURL, archive.Slug)
@@ -269,7 +301,7 @@ func ScrapeMetadata() {
 			}
 
 			metadata := &Metadata{}
-			metadatas[fileName] = metadata
+			metadataMap.Map[fileName] = metadata
 
 			fields := document.Find(wSelectorQuaternary)
 			fields.EachWithBreak(func(i int, s *goquery.Selection) bool {
@@ -291,7 +323,7 @@ func ScrapeMetadata() {
 
 	wg.Wait()
 
-	buf, err := json.Marshal(metadatas)
+	buf, err := json.Marshal(metadataMap.Map)
 	if err != nil {
 		log.Fatalln(err)
 	}

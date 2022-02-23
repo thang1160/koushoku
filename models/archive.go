@@ -31,7 +31,7 @@ type Archive struct {
 	Title       string     `boil:"title" json:"title" toml:"title" yaml:"title"`
 	Slug        string     `boil:"slug" json:"slug" toml:"slug" yaml:"slug"`
 	Pages       int16      `boil:"pages" json:"pages" toml:"pages" yaml:"pages"`
-	Size        string     `boil:"size" json:"size" toml:"size" yaml:"size"`
+	Size        int64      `boil:"size" json:"size" toml:"size" yaml:"size"`
 	CircleID    null.Int64 `boil:"circle_id" json:"circle_id,omitempty" toml:"circle_id" yaml:"circle_id,omitempty"`
 	MagazineID  null.Int64 `boil:"magazine_id" json:"magazine_id,omitempty" toml:"magazine_id" yaml:"magazine_id,omitempty"`
 	ParodyID    null.Int64 `boil:"parody_id" json:"parody_id,omitempty" toml:"parody_id" yaml:"parody_id,omitempty"`
@@ -245,7 +245,7 @@ var ArchiveWhere = struct {
 	Title       whereHelperstring
 	Slug        whereHelperstring
 	Pages       whereHelperint16
-	Size        whereHelperstring
+	Size        whereHelperint64
 	CircleID    whereHelpernull_Int64
 	MagazineID  whereHelpernull_Int64
 	ParodyID    whereHelpernull_Int64
@@ -258,7 +258,7 @@ var ArchiveWhere = struct {
 	Title:       whereHelperstring{field: "\"archive\".\"title\""},
 	Slug:        whereHelperstring{field: "\"archive\".\"slug\""},
 	Pages:       whereHelperint16{field: "\"archive\".\"pages\""},
-	Size:        whereHelperstring{field: "\"archive\".\"size\""},
+	Size:        whereHelperint64{field: "\"archive\".\"size\""},
 	CircleID:    whereHelpernull_Int64{field: "\"archive\".\"circle_id\""},
 	MagazineID:  whereHelpernull_Int64{field: "\"archive\".\"magazine_id\""},
 	ParodyID:    whereHelpernull_Int64{field: "\"archive\".\"parody_id\""},
@@ -298,8 +298,8 @@ type archiveL struct{}
 
 var (
 	archiveAllColumns            = []string{"id", "path", "created_at", "updated_at", "published_at", "title", "slug", "pages", "size", "circle_id", "magazine_id", "parody_id"}
-	archiveColumnsWithoutDefault = []string{"path", "pages"}
-	archiveColumnsWithDefault    = []string{"id", "created_at", "updated_at", "published_at", "title", "slug", "size", "circle_id", "magazine_id", "parody_id"}
+	archiveColumnsWithoutDefault = []string{"path", "pages", "size"}
+	archiveColumnsWithDefault    = []string{"id", "created_at", "updated_at", "published_at", "title", "slug", "circle_id", "magazine_id", "parody_id"}
 	archivePrimaryKeyColumns     = []string{"id"}
 	archiveGeneratedColumns      = []string{}
 )

@@ -27,27 +27,36 @@
                     </td>
                   </tr>
                 {{- end }}
-                {{- if .archive.Circle }}
-                  <tr class="circle">
-                    <td>Circle</td>
+                {{- if .archive.Circles }}
+                  <tr class="circles">
+                    <td>Circles</td>
                     <td>
-                      <a href="/circles/{{ .archive.Circle.Slug }}">{{ .archive.Circle.Name }}</a>
+                      {{- range $i, $v := .archive.Circles }}
+                        {{- if $i }},{{- end }}
+                        <a href="/circles/{{ .Slug }}">{{ .Name }}</a>
+                      {{- end }}
                     </td>
                   </tr>
                 {{- end }}
-                {{- if .archive.Magazine }}
-                  <tr class="magazine">
-                    <td>Magazine</td>
+                {{- if .archive.Magazines }}
+                  <tr class="magazines">
+                    <td>Magazines</td>
                     <td>
-                      <a href="/magazines/{{ .archive.Magazine.Slug }}">{{ .archive.Magazine.Name }}</a>
+                      {{- range $i, $v := .archive.Magazines }}
+                        {{- if $i }},{{- end }}
+                        <a href="/magazines/{{ .Slug }}">{{ .Name }}</a>
+                      {{- end }}
                     </td>
                   </tr>
                 {{- end }}
-                {{- if .archive.Parody }}
-                  <tr class="parody">
-                    <td>Parody</td>
+                {{- if .archive.Parodies }}
+                  <tr class="parodies">
+                    <td>Parodies</td>
                     <td>
-                      <a href="/parodies/{{ .archive.Parody.Slug }}">{{ .archive.Parody.Name }}</a>
+                      {{- range $i, $v := .archive.Parodies }}
+                        {{- if $i }},{{- end }}
+                        <a href="/parodies/{{ .Slug }}">{{ .Name }}</a>
+                      {{- end }}
                     </td>
                   </tr>
                 {{- end }}

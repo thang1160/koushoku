@@ -8,26 +8,24 @@ import (
 	"time"
 
 	. "koushoku/cache"
-	"koushoku/errs"
 
+	"koushoku/errs"
 	"koushoku/models"
 	"koushoku/modext"
 
-	"github.com/gosimple/slug"
 	"github.com/volatiletech/sqlboiler/v4/boil"
 	. "github.com/volatiletech/sqlboiler/v4/queries/qm"
 )
 
 func CreateTag(name string) (*modext.Tag, error) {
 	name = strings.Title(strings.TrimSpace(name))
-
 	if len(name) == 0 {
 		return nil, errs.ErrTagNameRequired
 	} else if len(name) > 128 {
 		return nil, errs.ErrTagNameTooLong
 	}
 
-	slug := slug.Make(name)
+	slug := slugify(name)
 
 	tag, err := models.Tags(Where("slug = ?", slug)).OneG()
 	if err == sql.ErrNoRows {
@@ -91,9 +89,8 @@ func GetTags(opts GetTagsOptions) (result *GetTagsResult) {
 	}()
 
 	q := []QueryMod{
-		Select("tag.*", "COUNT(archive.id) AS archive_count"),
-		InnerJoin("archive_tags at ON at.tag_id = tag.id"),
-		InnerJoin("archive ON archive.id = at.archive_id"),
+		Select("tag.*", "COUNT(archive.tag_id) AS archive_count"),
+		InnerJoin("archive_tags archive ON archive.tag_id = tag.id"),
 		GroupBy("tag.id"),
 		OrderBy("tag.name ASC"),
 	}
@@ -143,7 +140,7 @@ var isTagValidMap = QueryMapCache{
 }
 
 func IsTagValid(str string) (isValid bool) {
-	str = slug.Make(str)
+	str = slugify(str)
 
 	isTagValidMap.RLock()
 	v, ok := isTagValidMap.Map[str]

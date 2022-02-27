@@ -1,11 +1,17 @@
 package controllers
 
 import (
+	"archive/zip"
+	"bytes"
 	"fmt"
+	"io"
 	"net/http"
+	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
+
+	. "koushoku/config"
 
 	"koushoku/server"
 	"koushoku/services"
@@ -15,25 +21,6 @@ const (
 	archiveTemplateName = "archive.html"
 	readerTemplateName  = "reader.html"
 )
-
-func ServeArchiveFile(c *server.Context) {
-	id, err := c.ParamInt("id")
-	if err != nil {
-		c.Status(http.StatusInternalServerError)
-		return
-	}
-
-	pageNum := services.GetPageNum(c.Param("pageNum"))
-	if pageNum <= 0 {
-		c.Status(http.StatusBadRequest)
-		return
-	}
-
-	str := strings.TrimPrefix(c.Param("width"), "/")
-	width, _ := strconv.Atoi(strings.TrimSuffix(str, filepath.Ext(str)))
-
-	services.ServeArchiveFile(id, pageNum-1, width, c.Writer, c.Request)
-}
 
 func Archive(c *server.Context) {
 	if c.TryCache(archiveTemplateName) {
@@ -47,16 +34,24 @@ func Archive(c *server.Context) {
 	}
 
 	if strings.EqualFold(c.Query("download"), "true") {
-		services.ServeArchive(id, c.Writer, c.Request)
+		fp, err := services.GetArchiveSymlink(int(id))
+		if err != nil {
+			c.Status(http.StatusInternalServerError)
+			return
+		} else if len(fp) == 0 {
+			c.Status(http.StatusNotFound)
+			return
+		}
+		c.StreamFile(fp)
 		return
 	}
 
 	opts := services.GetArchiveOptions{
 		Preloads: []string{
 			services.ArchiveRels.Artists,
-			services.ArchiveRels.Circle,
-			services.ArchiveRels.Magazine,
-			services.ArchiveRels.Parody,
+			services.ArchiveRels.Circles,
+			services.ArchiveRels.Magazines,
+			services.ArchiveRels.Parodies,
 			services.ArchiveRels.Tags,
 		},
 	}
@@ -77,7 +72,7 @@ func Archive(c *server.Context) {
 	c.Cache(http.StatusOK, archiveTemplateName)
 }
 
-func ReadArchive(c *server.Context) {
+func Read(c *server.Context) {
 	if c.TryCache(readerTemplateName) {
 		return
 	}
@@ -119,6 +114,119 @@ func ReadArchive(c *server.Context) {
 
 	c.SetData("archive", result.Archive)
 	c.SetData("pageNum", pageNum)
-
 	c.Cache(http.StatusOK, readerTemplateName)
+}
+
+func createThumbnail(c *server.Context, f io.Reader, fp string, width int) (ok bool) {
+	tmp, err := os.CreateTemp("", "tmp-")
+	if err != nil {
+		c.Status(http.StatusInternalServerError)
+		return
+	}
+	defer func() {
+		tmp.Close()
+		os.Remove(tmp.Name())
+	}()
+
+	if _, err := io.Copy(tmp, f); err != nil {
+		c.Status(http.StatusInternalServerError)
+		return
+	}
+
+	opts := services.ResizeOptions{
+		Width:  width,
+		Height: width * 3 / 2,
+		Crop:   true,
+	}
+
+	if err := services.ResizeImage(tmp.Name(), fp, opts); err != nil {
+		c.Status(http.StatusInternalServerError)
+		return
+	}
+	return true
+}
+
+func ServePage(c *server.Context) {
+	id, err := c.ParamInt("id")
+	if err != nil {
+		c.Status(http.StatusInternalServerError)
+		return
+	}
+
+	pageNum := services.GetPageNum(c.Param("pageNum"))
+	if pageNum <= 0 {
+		c.Status(http.StatusBadRequest)
+		return
+	}
+	index := pageNum - 1
+
+	str := strings.TrimPrefix(c.Param("width"), "/")
+	width, _ := strconv.Atoi(strings.TrimSuffix(str, filepath.Ext(str)))
+
+	path, err := services.GetArchiveSymlink(id)
+	if err != nil {
+		c.Status(http.StatusInternalServerError)
+		return
+	} else if len(path) == 0 {
+		c.Status(http.StatusNotFound)
+		return
+	}
+
+	var fp string
+	if width > 0 && width <= 1024 && width%128 == 0 {
+		fp = filepath.Join(Config.Directories.Thumbnails, fmt.Sprintf("%d-%d.%d.jpg", id, pageNum, width))
+		if _, err := os.Stat(fp); err == nil {
+			c.ServeFile(fp)
+			return
+		}
+	}
+
+	zf, err := zip.OpenReader(path)
+	if err != nil {
+		c.Status(http.StatusInternalServerError)
+		return
+	}
+	defer zf.Close()
+
+	var files []*zip.File
+	for _, f := range zf.File {
+		stat := f.FileInfo()
+		name := stat.Name()
+
+		if stat.IsDir() ||
+			!(strings.HasSuffix(name, ".jpg") ||
+				strings.HasSuffix(name, ".png")) {
+			continue
+		}
+
+		files = append(files, f)
+	}
+
+	if index > len(files) {
+		c.Status(http.StatusNotFound)
+		return
+	}
+
+	file := files[index]
+	stat := file.FileInfo()
+
+	f, err := file.Open()
+	if err != nil {
+		c.Status(http.StatusInternalServerError)
+		return
+	}
+	defer f.Close()
+
+	if len(fp) > 0 {
+		if createThumbnail(c, f, fp, width) {
+			c.ServeFile(fp)
+		}
+	} else {
+		buf, err := io.ReadAll(f)
+		if err != nil {
+			c.Status(http.StatusInternalServerError)
+			return
+		}
+		c.ServeData(stat, bytes.NewReader(buf))
+	}
 }

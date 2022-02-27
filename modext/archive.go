@@ -1,8 +1,6 @@
 package modext
 
-import (
-	"koushoku/models"
-)
+import "koushoku/models"
 
 type Archive struct {
 	ID   int64  `json:"id"`
@@ -17,14 +15,11 @@ type Archive struct {
 	Pages int16  `json:"pages,omitempty"`
 	Size  int64  `json:"size,omitempty"`
 
-	Circle   *Circle   `json:"circle,omitempty"`
-	Magazine *Magazine `json:"magazine,omitempty"`
-	Parody   *Parody   `json:"parody,omitempty"`
-
-	Artists []*Artist `json:"artists,omitempty"`
-	Tags    []*Tag    `json:"tags,omitempty"`
-
-	Thumbnail string `json:"thumbnail,omitempty"`
+	Artists   []*Artist   `json:"artists,omitempty"`
+	Circles   []*Circle   `json:"circles,omitempty"`
+	Magazines []*Magazine `json:"magazines,omitempty"`
+	Parodies  []*Parody   `json:"parodies,omitempty"`
+	Tags      []*Tag      `json:"tags,omitempty"`
 }
 
 func NewArchive(model *models.Archive) *Archive {
@@ -80,31 +75,40 @@ func (archive *Archive) LoadArtists(model *models.Archive) *Archive {
 }
 
 func (archive *Archive) LoadCircle(model *models.Archive) *Archive {
-	if model == nil || model.R == nil || model.R.Circle == nil {
+	if model == nil || model.R == nil || len(model.R.Circles) == 0 {
 		return archive
 	}
 
-	archive.Circle = NewCircle(model.R.Circle)
+	archive.Circles = make([]*Circle, len(model.R.Circles))
+	for i, circle := range model.R.Circles {
+		archive.Circles[i] = NewCircle(circle)
+	}
 
 	return archive
 }
 
 func (archive *Archive) LoadMagazine(model *models.Archive) *Archive {
-	if model == nil || model.R == nil || model.R.Magazine == nil {
+	if model == nil || model.R == nil || len(model.R.Magazines) == 0 {
 		return archive
 	}
 
-	archive.Magazine = NewMagazine(model.R.Magazine)
+	archive.Magazines = make([]*Magazine, len(model.R.Magazines))
+	for i, magazine := range model.R.Magazines {
+		archive.Magazines[i] = NewMagazine(magazine)
+	}
 
 	return archive
 }
 
 func (archive *Archive) LoadParody(model *models.Archive) *Archive {
-	if model == nil || model.R == nil || model.R.Parody == nil {
+	if model == nil || model.R == nil || len(model.R.Parodies) == 0 {
 		return archive
 	}
 
-	archive.Parody = NewParody(model.R.Parody)
+	archive.Parodies = make([]*Parody, len(model.R.Parodies))
+	for i, parody := range model.R.Parodies {
+		archive.Parodies[i] = NewParody(parody)
+	}
 
 	return archive
 }

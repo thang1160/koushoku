@@ -19,19 +19,13 @@ var opts struct {
 	PublishAll   bool `long:"publish-all" description:"Publish all archives"`
 	UnpublishAll bool `long:"unpublish-all" description:"Unpublish all archives"`
 
-	Singles     bool   `long:"singles" description:"Download singles"`
-	SinglesPath string `long:"singles-path" description:"Path to file containing single releases (optional)"`
-
-	Batches     bool   `long:"batches" description:"Download batches"`
-	BatchesPath string `long:"batches-path" description:"Path to file containing batch releases (optional)"`
-
 	Moderate        bool `long:"moderate" description:"Moderate all archives (blacklist)"`
 	Purge           bool `long:"purge" description:"Purge symlinks"`
 	PurgeThumbnails bool `long:"purge-thumbnails" description:"Purge thumbnails"`
 	Index           bool `long:"index" description:"Index archives"`
 
-	ScrapeMetadata bool `long:"scrape-metadata" description:"Scrape metadata of all archives from you-know-where"`
-	ImportMetadata bool `long:"import-metadata" description:"Import archives metadata from metadata.json"`
+	Scrape bool `long:"scrape" description:"Scrape metadata from you-know-where"`
+	Import bool `long:"import" description:"Import metadata from metadata.json"`
 }
 
 func main() {
@@ -59,24 +53,6 @@ func main() {
 		}
 	}
 
-	if opts.Singles {
-		log.Println("Downloading singles...")
-		if len(opts.SinglesPath) > 0 {
-			services.DownloadMagnets(opts.SinglesPath)
-		} else {
-			services.DownloadSingles()
-		}
-	}
-
-	if opts.Batches {
-		log.Println("Downloading batches...")
-		if len(opts.BatchesPath) > 0 {
-			services.DownloadMagnets(opts.BatchesPath)
-		} else {
-			services.DownloadBatches()
-		}
-	}
-
 	if opts.Purge {
 		log.Println("Purging symlinks...")
 		services.PurgeArchiveSymlinks()
@@ -92,14 +68,19 @@ func main() {
 		services.IndexArchives()
 	}
 
-	if opts.ScrapeMetadata {
+	if opts.Scrape {
 		log.Println("Scraping metadata...")
 		services.ScrapeMetadata()
 	}
 
-	if opts.ImportMetadata {
+	if opts.Import {
 		log.Println("Importing metadata...")
 		services.ImportMetadata()
+	}
+
+	if opts.Moderate {
+		log.Println("Moderating archives...")
+		services.ModerateArchives()
 	}
 
 	if len(opts.Publish) > 0 {
@@ -109,11 +90,6 @@ func main() {
 				log.Fatalln(err)
 			}
 		}
-	}
-
-	if opts.Moderate {
-		log.Println("Moderating archives...")
-		services.ModerateArchives()
 	}
 
 	if opts.PublishAll {

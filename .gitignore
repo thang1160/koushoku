@@ -1,11 +1,14 @@
 config.ini
+!config/config.ini
 koushoku.ini
 koushoku.yaml
 bin/*
 !bin/templates
 !bin/assets
+!bin/alias.txt
 !bin/blacklist.txt
 bin/assets/**/*.development.*
+bin/templates/about.html
 bin/assets/favicon.ico
 build
 dist

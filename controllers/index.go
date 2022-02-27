@@ -2,12 +2,13 @@ package controllers
 
 import (
 	"fmt"
-	"koushoku/server"
-	"koushoku/services"
 	"math"
 	"net/http"
 	"strconv"
 	"strings"
+
+	"koushoku/server"
+	"koushoku/services"
 )
 
 const (
@@ -27,8 +28,8 @@ func Index(c *server.Context) {
 		Offset: indexLimit * (page - 1),
 		Preloads: []string{
 			services.ArchiveRels.Artists,
-			services.ArchiveRels.Circle,
-			services.ArchiveRels.Magazine,
+			services.ArchiveRels.Circles,
+			services.ArchiveRels.Magazines,
 		},
 	}
 	result := services.GetArchives(opts)
@@ -69,13 +70,15 @@ func Search(c *server.Context) {
 	q := SearchQueries{}
 	c.BindQuery(&q)
 
+	q.Search = strings.TrimSpace(q.Search)
+
 	opts := services.GetArchivesOptions{
 		Limit:  indexLimit,
 		Offset: indexLimit * (q.Page - 1),
 		Preloads: []string{
 			services.ArchiveRels.Artists,
-			services.ArchiveRels.Circle,
-			services.ArchiveRels.Magazine,
+			services.ArchiveRels.Circles,
+			services.ArchiveRels.Magazines,
 		},
 	}
 
@@ -85,11 +88,11 @@ func Search(c *server.Context) {
 		}
 
 		if services.IsCircleValid(q.Search) {
-			opts.Circle = q.Search
+			opts.Circles = []string{q.Search}
 		}
 
 		if services.IsParodyValid(q.Search) {
-			opts.Parody = q.Search
+			opts.Parodies = []string{q.Search}
 		}
 
 		if services.IsTagValid(q.Search) {
@@ -105,8 +108,8 @@ func Search(c *server.Context) {
 			}
 		}
 
-		if len(opts.Artists) == 0 && len(opts.Circle) == 0 &&
-			len(opts.Magazine) == 0 && len(opts.Parody) == 0 &&
+		if len(opts.Artists) == 0 && len(opts.Circles) == 0 &&
+			len(opts.Magazines) == 0 && len(opts.Parodies) == 0 &&
 			len(opts.Tags) == 0 {
 			opts.Path = q.Search
 		}
@@ -135,5 +138,9 @@ func Search(c *server.Context) {
 	totalPages := int(math.Ceil(float64(result.Total) / float64(indexLimit)))
 	c.SetData("pagination", services.CreatePagination(q.Page, totalPages))
 
-	c.Cache(http.StatusOK, searchTemplateName)
+	if len(result.Archives) > 0 {
+		c.Cache(http.StatusOK, searchTemplateName)
+	} else {
+		c.Cache(http.StatusNotFound, searchTemplateName)
+	}
 }

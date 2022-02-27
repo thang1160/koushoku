@@ -8,27 +8,24 @@ import (
 	"time"
 
 	. "koushoku/cache"
-	"koushoku/errs"
 
+	"koushoku/errs"
 	"koushoku/models"
 	"koushoku/modext"
 
-	"github.com/gosimple/slug"
 	"github.com/volatiletech/sqlboiler/v4/boil"
 	. "github.com/volatiletech/sqlboiler/v4/queries/qm"
 )
 
 func CreateCircle(name string) (*modext.Circle, error) {
 	name = strings.Title(strings.TrimSpace(name))
-
 	if len(name) == 0 {
 		return nil, errs.ErrCircleNameRequired
 	} else if len(name) > 128 {
 		return nil, errs.ErrCircleNameTooLong
 	}
 
-	slug := slug.Make(name)
-
+	slug := slugify(name)
 	circle, err := models.Circles(Where("slug = ?", slug)).OneG()
 	if err == sql.ErrNoRows {
 		circle = &models.Circle{
@@ -91,8 +88,8 @@ func GetCircles(opts GetCirclesOptions) (result *GetCirclesResult) {
 	}()
 
 	q := []QueryMod{
-		Select("circle.*", "COUNT(archive.id) AS archive_count"),
-		InnerJoin("archive ON archive.circle_id = circle.id"),
+		Select("circle.*", "COUNT(archive.circle_id) AS archive_count"),
+		InnerJoin("archive_circles archive ON archive.circle_id = circle.id"),
 		GroupBy("circle.id"),
 		OrderBy("circle.name ASC"),
 	}
@@ -142,7 +139,7 @@ var isCircleValidMap = QueryMapCache{
 }
 
 func IsCircleValid(str string) (isValid bool) {
-	str = slug.Make(str)
+	str = slugify(str)
 
 	isCircleValidMap.RLock()
 	v, ok := isCircleValidMap.Map[str]

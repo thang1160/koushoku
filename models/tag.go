@@ -414,7 +414,7 @@ func (tagL) LoadArchives(e boil.Executor, singular bool, maybeTag interface{}, m
 	}
 
 	query := NewQuery(
-		qm.Select("\"archive\".id, \"archive\".path, \"archive\".created_at, \"archive\".updated_at, \"archive\".published_at, \"archive\".title, \"archive\".slug, \"archive\".pages, \"archive\".size, \"archive\".circle_id, \"archive\".magazine_id, \"archive\".parody_id, \"a\".\"tag_id\""),
+		qm.Select("\"archive\".id, \"archive\".path, \"archive\".created_at, \"archive\".updated_at, \"archive\".published_at, \"archive\".title, \"archive\".slug, \"archive\".pages, \"archive\".size, \"a\".\"tag_id\""),
 		qm.From("\"archive\""),
 		qm.InnerJoin("\"archive_tags\" as \"a\" on \"archive\".\"id\" = \"a\".\"archive_id\""),
 		qm.WhereIn("\"a\".\"tag_id\" in ?", args...),
@@ -435,7 +435,7 @@ func (tagL) LoadArchives(e boil.Executor, singular bool, maybeTag interface{}, m
 		one := new(Archive)
 		var localJoinCol int64
 
-		err = results.Scan(&one.ID, &one.Path, &one.CreatedAt, &one.UpdatedAt, &one.PublishedAt, &one.Title, &one.Slug, &one.Pages, &one.Size, &one.CircleID, &one.MagazineID, &one.ParodyID, &localJoinCol)
+		err = results.Scan(&one.ID, &one.Path, &one.CreatedAt, &one.UpdatedAt, &one.PublishedAt, &one.Title, &one.Slug, &one.Pages, &one.Size, &localJoinCol)
 		if err != nil {
 			return errors.Wrap(err, "failed to scan eager loaded results for archive")
 		}
@@ -806,6 +806,10 @@ func (o *Tag) Update(exec boil.Executor, columns boil.Columns) error {
 			tagAllColumns,
 			tagPrimaryKeyColumns,
 		)
+
+		if !columns.IsWhitelist() {
+			wl = strmangle.SetComplement(wl, []string{"created_at"})
+		}
 		if len(wl) == 0 {
 			return errors.New("models: unable to update tag, could not build whitelist")
 		}

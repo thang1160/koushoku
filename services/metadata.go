@@ -19,7 +19,6 @@ import (
 	"koushoku/modext"
 
 	"github.com/PuerkitoBio/goquery"
-	"github.com/gosimple/slug"
 
 	. "github.com/volatiletech/sqlboiler/v4/queries/qm"
 )
@@ -30,8 +29,8 @@ type MetadataMap struct {
 }
 
 type Metadata struct {
-	Parody string
-	Tags   []string
+	Parodies []string
+	Tags     []string
 }
 
 var metadataMap MetadataMap
@@ -61,9 +60,9 @@ func ImportMetadata() {
 
 	archives, err := models.Archives(
 		Load(ArchiveRels.Artists),
-		Load(ArchiveRels.Circle),
-		Load(ArchiveRels.Magazine),
-		Load(ArchiveRels.Parody),
+		Load(ArchiveRels.Circles),
+		Load(ArchiveRels.Magazines),
+		Load(ArchiveRels.Parodies),
 		Load(ArchiveRels.Tags),
 	).AllG()
 	if err != nil {
@@ -75,31 +74,81 @@ func ImportMetadata() {
 		log.Fatalln(err)
 	}
 
+	var wg sync.WaitGroup
+	wg.Add(len(archives))
+
+	c := make(chan bool, 20)
+	defer func() {
+		close(c)
+	}()
+
 	for _, arc := range archives {
-		if arc.R != nil && (arc.R.Parody != nil || len(arc.R.Tags) > 0) {
-			continue
-		}
+		c <- true
+		go func(arc *models.Archive) {
+			defer func() {
+				wg.Done()
+				<-c
+			}()
 
-		fileName := filepath.Base(arc.Path)
-		metadata, ok := metadataMap.Map[fileName]
-		if !ok {
-			continue
-		}
+			fileName := FileName(arc.Path)
+			fileNameSlug := slugify(fileName)
 
-		log.Println("Importing metadata of", fileName)
-		archive := modext.NewArchive(arc).LoadRels(arc)
+			metadata, ok := metadataMap.Map[fileNameSlug]
+			if !ok {
+				return
+			}
 
-		archive.Parody = &modext.Parody{Name: metadata.Parody}
-		archive.Tags = make([]*modext.Tag, len(metadata.Tags))
+			log.Println("Importing metadata of", fileName)
+			archive := modext.NewArchive(arc).LoadRels(arc)
 
-		for i, tag := range metadata.Tags {
-			archive.Tags[i] = &modext.Tag{Name: tag}
-		}
+			for _, parody := range metadata.Parodies {
+				slug := slugify(parody)
+				if v, ok := alias.Parodies[slug]; ok {
+					slug = slugify(v)
+					parody = v
+				}
 
-		if err := refreshArchiveRels(tx, arc, archive); err != nil {
-			log.Fatalln(err)
-		}
+				isDuplicate := false
+				for _, p := range archive.Parodies {
+					if p.Slug == slug {
+						isDuplicate = true
+						break
+					}
+				}
+
+				if !isDuplicate {
+					archive.Parodies = append(archive.Parodies,
+						&modext.Parody{Name: parody})
+				}
+			}
+
+			for _, tag := range metadata.Tags {
+				slug := slugify(tag)
+				if v, ok := alias.Tags[slug]; ok {
+					slug = slugify(v)
+					tag = v
+				}
+
+				isDuplicate := false
+				for _, tag2 := range archive.Tags {
+					if tag2.Slug == slug {
+						isDuplicate = true
+						break
+					}
+				}
+
+				if !isDuplicate {
+					archive.Tags = append(archive.Tags,
+						&modext.Tag{Name: tag})
+				}
+			}
+
+			if err := refreshArchiveRels(tx, arc, archive); err != nil {
+				log.Fatalln(err)
+			}
+		}(arc)
 	}
+	wg.Wait()
 
 	if err := tx.Commit(); err != nil {
 		log.Fatalln(err)
@@ -173,14 +222,27 @@ func decodeStrings() {
 	wSelectorQuaternary = string(buf)
 }
 
+func sendRequest(url string) (*http.Response, error) {
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Set("User-Agent", wUserAgent)
+	return http.DefaultClient.Do(req)
+}
+
 func ScrapeMetadata() {
-	initMetadata()
 	if len(wBaseURL) == 0 {
 		decodeStrings()
 	}
 
+	initAlias()
+	initMetadata()
+
 	archives, err := models.Archives(
-		Load(ArchiveRels.Parody),
+		Load(ArchiveRels.Artists),
+		Load(ArchiveRels.Parodies),
 		Load(ArchiveRels.Tags),
 	).AllG()
 	if err != nil {
@@ -190,7 +252,6 @@ func ScrapeMetadata() {
 	total := len(archives)
 	log.Println(fmt.Sprintf("%d archives found", total))
 
-	// Maximum number of concurrent requests
 	c := make(chan bool, 10)
 	defer func() {
 		close(c)
@@ -199,39 +260,39 @@ func ScrapeMetadata() {
 	var wg sync.WaitGroup
 	wg.Add(total)
 
-	for i, archive := range archives {
+	for i, model := range archives {
 		c <- true
-
-		go func(i int, archive *models.Archive) {
+		go func(i int, model *models.Archive) {
 			defer func() {
 				wg.Done()
 				<-c
 			}()
 
-			if archive.R != nil && (archive.R.Parody != nil || len(archive.R.Tags) > 0) {
+			if model.R != nil && (len(model.R.Parodies) > 0 || len(model.R.Tags) > 0) {
 				return
 			}
 
-			fileName := filepath.Base(archive.Path)
-			if _, ok := metadataMap.Map[fileName]; ok {
+			fileName := FileName(model.Path)
+			fileNameSlug := slugify(fileName)
+
+			if _, ok := metadataMap.Map[fileNameSlug]; ok {
 				return
 			}
 
-			log.Println(fileName) // DO NOT DELETE; intentional
-
-			u := fmt.Sprintf("%s/search/%s", wBaseURL, archive.Slug)
-			req, err := http.NewRequest("GET", u, nil)
+			u := fmt.Sprintf("%s/search/%s", wBaseURL, model.Slug)
+			res, err := sendRequest(u)
 			if err != nil {
 				log.Fatalln(err)
 			}
 
-			req.Header.Set("User-Agent", wUserAgent)
-			res, err := http.DefaultClient.Do(req)
-			if err != nil {
-				log.Fatalln(err)
-			}
+			var path string
+			var document *goquery.Document
 
 			if res.StatusCode != http.StatusOK {
+				if res.StatusCode == http.StatusNotFound {
+					path = fmt.Sprintf("/hentai/%s-english", model.Slug)
+					goto Skip
+				}
 				if res.StatusCode != http.StatusNotFound {
 					log.Println("Failed to scrape metadata of", fileName)
 				}
@@ -239,31 +300,29 @@ func ScrapeMetadata() {
 				return
 			}
 
-			document, err := goquery.NewDocumentFromReader(res.Body)
+			document, err = goquery.NewDocumentFromReader(res.Body)
 			res.Body.Close()
 			if err != nil {
 				log.Fatalln(err)
 			}
 
-			var path string
 			document.Find(wSelectorPrimay).Each(func(i int, s *goquery.Selection) {
 				title := s.Find(wSelectorSecondary).First()
-				if title == nil {
+				if slugify(title.Text()) != model.Slug {
 					return
 				}
 
-				if slug.Make(title.Text()) != archive.Slug {
+				str := slugify(s.Find(wSelectorTertiary).First().Text())
+				if len(str) == 0 {
 					return
 				}
 
-				artist := s.Find(wSelectorTertiary).First()
-				if artist == nil {
-					return
+				if v, ok := alias.Artists[str]; ok {
+					str = slugify(v)
 				}
 
-				slug := slug.Make(artist.Text())
-				for _, artist := range archive.R.Artists {
-					if slug == artist.Slug {
+				for _, artist := range model.R.Artists {
+					if str == artist.Slug {
 						path, _ = title.Attr("href")
 						break
 					}
@@ -274,14 +333,9 @@ func ScrapeMetadata() {
 				return
 			}
 
+		Skip:
 			time.Sleep(time.Second)
-			req, err = http.NewRequest("GET", wBaseURL+path, nil)
-			if err != nil {
-				log.Fatalln(err)
-			}
-
-			req.Header.Set("User-Agent", wUserAgent)
-			res, err = http.DefaultClient.Do(req)
+			res, err = sendRequest(wBaseURL + path)
 			if err != nil {
 				log.Fatalln(err)
 			}
@@ -300,27 +354,41 @@ func ScrapeMetadata() {
 				log.Fatalln(err)
 			}
 
+			log.Println("Found", fileName)
+
 			metadata := &Metadata{}
-			metadataMap.Map[fileName] = metadata
+			metadataMap.Map[fileNameSlug] = metadata
 
 			fields := document.Find(wSelectorQuaternary)
 			fields.EachWithBreak(func(i int, s *goquery.Selection) bool {
 				if !strings.Contains(strings.ToLower(s.Text()), wKeyword) {
 					return true
 				}
-				metadata.Parody = strings.TrimSpace(s.Children().Last().Text())
+
+				parodies := strings.Split(strings.TrimSpace(s.Children().Last().Text()), ",")
+				for i := range parodies {
+					parodies[i] = strings.TrimSpace(parodies[i])
+					if v, ok := alias.Parodies[slugify(parodies[i])]; ok {
+						parodies[i] = v
+					}
+				}
+
+				metadata.Parodies = parodies
 				return false
 			})
 
 			fields.Last().Children().First().Children().Each(func(i int, s *goquery.Selection) {
 				href, _ := s.Attr("href")
 				if i > 0 && len(href) > 0 {
-					metadata.Tags = append(metadata.Tags, strings.TrimSpace(s.Text()))
+					tag := strings.TrimSpace(s.Text())
+					if v, ok := alias.Tags[slugify(tag)]; ok {
+						tag = v
+					}
+					metadata.Tags = append(metadata.Tags, tag)
 				}
 			})
-		}(i, archive)
+		}(i, model)
 	}
-
 	wg.Wait()
 
 	buf, err := json.Marshal(metadataMap.Map)

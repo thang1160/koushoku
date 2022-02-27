@@ -69,28 +69,34 @@ const initReader = () => {
   pages.push(...Array.from({ length: total }, (_, i) => ({ isViewing: i + 1 === current })));
 
   const changePage = (n: number) => {
-    current = n;
+    if (mutex.current) return;
+    mutex.current = true;
+    try {
+      current = n;
 
-    pages.find(p => p.isViewing).isViewing = false;
-    pages[current - 1].isViewing = true;
+      pages.find(p => p.isViewing).isViewing = false;
+      pages[current - 1].isViewing = true;
 
-    page.href = `/archive/${id}/${slug}/${current}`;
+      page.href = `/archive/${id}/${slug}/${current}`;
 
-    const newImg = document.createElement("img");
-    newImg.src = `/data/${id}/${current}.jpg`;
-    img.replaceWith(newImg);
-    img = newImg;
+      const newImg = document.createElement("img");
+      newImg.src = `/data/${id}/${current}.jpg`;
+      img.replaceWith(newImg);
+      img = newImg;
 
-    currentSpans.forEach(span => (span.textContent = current.toString()));
-    window.history.replaceState(null, "", `/archive/${id}/${slug}/${current}`);
+      currentSpans.forEach(span => (span.textContent = current.toString()));
+      window.history.replaceState(null, "", `/archive/${id}/${slug}/${current}`);
 
-    prev.forEach(e => {
-      e.href = `/archive/${id}/${slug}/${current - 1}`;
-    });
+      prev.forEach(e => {
+        e.href = `/archive/${id}/${slug}/${current - 1}`;
+      });
 
-    next.forEach(e => {
-      e.href = `/archive/${id}/${slug}/${current + 1}`;
-    });
+      next.forEach(e => {
+        e.href = `/archive/${id}/${slug}/${current + 1}`;
+      });
+    } finally {
+      mutex.current = false;
+    }
   };
 
   first.forEach(e => {
@@ -142,23 +148,16 @@ const initReader = () => {
     ev.stopPropagation();
     ev.stopImmediatePropagation();
 
-    if (mutex.current) return;
-    mutex.current = true;
+    const target = ev.target as HTMLAnchorElement;
+    const isPrev = ev.screenX - rect.x <= target.clientWidth / 2;
 
-    (() => {
-      const target = ev.target as HTMLAnchorElement;
-      const isPrev = ev.screenX - rect.x <= target.clientWidth / 2;
-
-      if (isPrev) {
-        if (current === 1) return;
-        changePage(current - 1);
-      } else {
-        if (current === total) return;
-        changePage(current + 1);
-      }
-    })();
-
-    mutex.current = false;
+    if (isPrev) {
+      if (current === 1) return;
+      changePage(current - 1);
+    } else {
+      if (current === total) return;
+      changePage(current + 1);
+    }
   });
 
   let interval = 0;
@@ -180,6 +179,16 @@ const initReader = () => {
   });
   observer.observe(page, { childList: true, attributes: true });
   initPreload();
+
+  window.addEventListener("keydown", ev => {
+    if (ev.code === "ArrowLeft" || ev.code === "KeyA" || ev.code === "KeyH") {
+      if (current === 1) return;
+      changePage(current - 1);
+    } else if (ev.code === "ArrowRight" || ev.code === "KeyD" || ev.code === "KeyL") {
+      if (current === total) return;
+      changePage(current + 1);
+    }
+  });
 };
 
 const init = () => {

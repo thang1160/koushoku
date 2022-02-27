@@ -8,26 +8,24 @@ import (
 	"time"
 
 	. "koushoku/cache"
-	"koushoku/errs"
 
+	"koushoku/errs"
 	"koushoku/models"
 	"koushoku/modext"
 
-	"github.com/gosimple/slug"
 	"github.com/volatiletech/sqlboiler/v4/boil"
 	. "github.com/volatiletech/sqlboiler/v4/queries/qm"
 )
 
 func CreateMagazine(name string) (*modext.Magazine, error) {
 	name = strings.TrimSpace(name)
-
 	if len(name) == 0 {
 		return nil, errs.ErrMagazineNameRequired
 	} else if len(name) > 128 {
 		return nil, errs.ErrMagazineNameTooLong
 	}
 
-	slug := slug.Make(name)
+	slug := slugify(name)
 
 	magazine, err := models.Magazines(Where("slug = ?", slug)).OneG()
 	if err == sql.ErrNoRows {
@@ -91,8 +89,8 @@ func GetMagazines(opts GetMagazinesOptions) (result *GetMagazinesResult) {
 	}()
 
 	q := []QueryMod{
-		Select("magazine.*", "COUNT(archive.id) AS archive_count"),
-		InnerJoin("archive ON archive.magazine_id = magazine.id"),
+		Select("magazine.*", "COUNT(archive.magazine_id) AS archive_count"),
+		InnerJoin("archive_magazines archive ON archive.magazine_id = magazine.id"),
 		GroupBy("magazine.id"),
 		OrderBy("magazine.name ASC"),
 	}
@@ -141,7 +139,7 @@ var isMagazineValidMap = QueryMapCache{
 }
 
 func IsMagazineValid(str string) (isValid bool) {
-	str = slug.Make(str)
+	str = slugify(str)
 
 	isMagazineValidMap.RLock()
 	v, ok := isMagazineValidMap.Map[str]

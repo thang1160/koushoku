@@ -10,24 +10,27 @@ import (
 	. "koushoku/config"
 )
 
-type Blacklist struct {
+var blacklist struct {
 	Archives  map[string]bool
-	ArchivesP []string
+	ArchivesG []string
 	Artists   map[string]bool
+	Circles   map[string]bool
+	Magazines map[string]bool
+	Tags      map[string]bool
 
 	once sync.Once
 }
-
-var blacklist Blacklist
 
 func initBlacklist() {
 	blacklist.once.Do(func() {
 		blacklist.Archives = make(map[string]bool)
 		blacklist.Artists = make(map[string]bool)
+		blacklist.Circles = make(map[string]bool)
+		blacklist.Magazines = make(map[string]bool)
+		blacklist.Tags = make(map[string]bool)
 
-		if d, err := os.Stat(Config.Paths.Blacklist); os.IsNotExist(err) {
-			return
-		} else if d.IsDir() {
+		stat, err := os.Stat(Config.Paths.Blacklist)
+		if os.IsNotExist(err) || stat.IsDir() {
 			return
 		}
 
@@ -46,26 +49,31 @@ func initBlacklist() {
 			if len(line) == 0 {
 				continue
 			}
+
 			arr := strings.Split(strings.ToLower(line), ":")
 			if len(arr) < 2 {
 				continue
 			}
 
-			t := strings.TrimSpace(arr[0])
-			v := strings.TrimSpace(strings.Join(arr[1:], ":"))
-
-			if t == "artist" {
+			v := slugify(strings.Join(arr[1:], ":"))
+			switch strings.TrimSpace(arr[0]) {
+			case "artist":
 				blacklist.Artists[v] = true
-			} else if t == "title" {
+			case "circle":
+				blacklist.Circles[v] = true
+			case "magazine":
+				blacklist.Magazines[v] = true
+			case "title":
 				blacklist.Archives[v] = true
-			} else if t == "title*" {
-				blacklist.ArchivesP = append(blacklist.ArchivesP, v)
+			case "title*":
+				blacklist.ArchivesG = append(blacklist.ArchivesG, v)
+			case "tag":
+				blacklist.Tags[v] = true
 			}
 		}
 
 		if err := scanner.Err(); err != nil {
 			log.Println(err)
-			return
 		}
 	})
 }

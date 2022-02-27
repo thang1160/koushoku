@@ -1,14 +1,15 @@
 # koushoku
 
-Source code of site [redacted] for those who are willing to run their own instance. You need at least 1 GB of RAM and 1 TB of storage space.
+Source code of site [redacted] for those who are willing to run their own instance.
 
-**server** - Use this to deploy the server, it runs on port 42073 by default.
+### How it serve and index the archives
 
-**util** - Utility tool, use this to download, indexand delete archives, etc.
+Archives and its files are served directly, without writing the files inside the archives into the disk (except for thumbnails). Archives inside the specified data directory will be indexed as long as it follows the following naming formats:
 
-Put batch releases into a file named **batches.txt** and singles into a file named **singles.txt**. Magnet links are separated by a new line.
+- [Artist] Title (Magazine) [Foo] [Bar] [Crap] {tags kebab-case optional}
+- [Circle (Artist)] Title (Magazine) [Foo] [Bar] [Crap] {tags kebab-case optional}
 
-For more information, use `util --help`. You can combine multiple arguments, for instance, when you execute it using `--purge --index` arguments, it will purge symlinks then re-index the archives.
+Archives will be indexed concurrently, and usually takes several minutes (~1m10s for around ~8k archives). You can decrease the maximum concurrent numbers if your server is overloaded.
 
 ## Prerequisites
 

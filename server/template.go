@@ -38,13 +38,11 @@ func LoadTemplates() {
 
 	var files []string
 	err := filepath.Walk(filepath.Join(Config.Directories.Templates),
-		func(path string, info fs.FileInfo, err error) error {
-			if info == nil || err != nil {
+		func(path string, stat fs.FileInfo, err error) error {
+			if err != nil || stat.IsDir() || !strings.HasSuffix(path, ".html") {
 				return err
 			}
-			if !info.IsDir() && strings.HasSuffix(path, ".html") {
-				files = append(files, path)
-			}
+			files = append(files, path)
 			return err
 		})
 	if err != nil {
@@ -69,6 +67,7 @@ func parseTemplate(name string, data interface{}) ([]byte, error) {
 
 	var buf bytes.Buffer
 	if err := t.Execute(&buf, data); err != nil {
+		log.Println(err)
 		return nil, err
 	}
 	return buf.Bytes(), nil

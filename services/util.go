@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log"
 	"math"
 	"net/url"
 	"os"
@@ -16,9 +15,7 @@ import (
 	"strings"
 	"sync"
 
-	. "koushoku/config"
-
-	"koushoku/modext"
+	"github.com/gosimple/slug"
 )
 
 type QueryMapCache struct {
@@ -86,29 +83,8 @@ func FormatBytes(b int64) string {
 	return fmt.Sprintf("%.1f %cB", float64(b)/float64(div), "kMGTPE"[exp])
 }
 
-func FormatArchive(archive *modext.Archive) string {
-	var s string
-	if archive.Circle != nil {
-		if len(archive.Artists) == 1 {
-			s = fmt.Sprintf("[%s (%s)] ", archive.Circle.Name, archive.Artists[0].Name)
-		} else {
-			s = fmt.Sprintf("[%s] ", archive.Circle.Name)
-		}
-	} else if len(archive.Artists) > 0 && len(archive.Artists) < 3 {
-		s += "["
-		for i, artist := range archive.Artists {
-			if i > 0 {
-				s += ", "
-			}
-			s += artist.Name
-		}
-		s += "] "
-	}
-	s += archive.Title
-	if archive.Magazine != nil {
-		s += fmt.Sprintf(" [%s]", archive.Magazine.Name)
-	}
-	return s
+func FileName(path string) string {
+	return strings.TrimRight(filepath.Base(path), filepath.Ext(path))
 }
 
 var rgx = regexp.MustCompile("[0-9]+")
@@ -132,6 +108,34 @@ func makeCacheKey(v interface{}) string {
 	return string(buf)
 }
 
+var slugCache struct {
+	Map map[string]string
+	sync.RWMutex
+	sync.Once
+}
+
+func slugify(s string) string {
+	slugCache.Once.Do(func() {
+		slugCache.Map = make(map[string]string)
+	})
+
+	s = strings.ToLower(s)
+
+	slugCache.RLock()
+	v, ok := slugCache.Map[s]
+	slugCache.RUnlock()
+
+	if !ok {
+		v = slug.Make(s)
+
+		slugCache.Lock()
+		slugCache.Map[s] = v
+		slugCache.Unlock()
+	}
+
+	return v
+}
+
 func stringsContains(slice []string, search string) bool {
 	for _, str := range slice {
 		if str == search {
@@ -141,24 +145,13 @@ func stringsContains(slice []string, search string) bool {
 	return false
 }
 
-func CreateArchiveSymlink(archive *modext.Archive) error {
-	if archive == nil {
-		return nil
+func pluralize(str string) string {
+	if strings.HasSuffix(str, "ss") {
+		return str + "es"
+	} else if strings.HasSuffix(str, "y") {
+		return strings.TrimSuffix(str, "y") + "ies"
 	}
-
-	symlink := filepath.Join(Config.Directories.Symlinks, strconv.Itoa(int(archive.ID)))
-	return os.Symlink(archive.Path, symlink)
-}
-
-func GetArchiveSymlink(id int) (string, error) {
-	symlink := filepath.Join(Config.Directories.Symlinks, strconv.Itoa(id))
-	return os.Readlink(symlink)
-}
-
-func PurgeArchiveSymlinks() {
-	if err := os.RemoveAll(Config.Directories.Symlinks); err != nil {
-		log.Fatalln(err)
-	}
+	return str + "s"
 }
 
 type ResizeOptions struct {
@@ -168,23 +161,28 @@ type ResizeOptions struct {
 }
 
 var resizer struct {
-	Map map[string]*sync.Mutex
-	sync.Mutex
+	Map   map[string]*sync.Mutex
+	Queue chan bool
+	sync.RWMutex
 	sync.Once
 }
 
 func init() {
 	resizer.Map = make(map[string]*sync.Mutex)
+	resizer.Queue = make(chan bool, 10)
 }
 
-func resizeImage(filepath, outputPath string, o ResizeOptions) error {
-	resizer.Lock()
+func ResizeImage(filepath, outputPath string, o ResizeOptions) error {
+	resizer.RLock()
 	mu, ok := resizer.Map[outputPath]
+	resizer.RUnlock()
+
 	if !ok {
 		mu = &sync.Mutex{}
+		resizer.Lock()
 		resizer.Map[outputPath] = mu
+		resizer.Unlock()
 	}
-	resizer.Unlock()
 
 	mu.Lock()
 	defer func() {
@@ -198,6 +196,11 @@ func resizeImage(filepath, outputPath string, o ResizeOptions) error {
 	if ok {
 		return nil
 	}
+
+	resizer.Queue <- true
+	defer func() {
+		<-resizer.Queue
+	}()
 
 	w := strconv.Itoa(o.Width)
 	h := strconv.Itoa(o.Height)

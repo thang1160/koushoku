@@ -9,7 +9,6 @@ import (
 	"time"
 
 	. "koushoku/config"
-
 	"koushoku/services"
 
 	"github.com/nleeper/goment"
@@ -20,7 +19,6 @@ var helper = template.FuncMap{
 		return Config.Meta.BaseURL
 	},
 
-	"formatArchive": services.FormatArchive,
 	"formatBytes": func(bytes interface{}) string {
 		var n int64
 		switch v := bytes.(type) {

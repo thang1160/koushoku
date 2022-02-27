@@ -360,7 +360,8 @@ func (o *Magazine) Archives(mods ...qm.QueryMod) archiveQuery {
 	}
 
 	queryMods = append(queryMods,
-		qm.Where("\"archive\".\"magazine_id\"=?", o.ID),
+		qm.InnerJoin("\"archive_magazines\" on \"archive\".\"id\" = \"archive_magazines\".\"archive_id\""),
+		qm.Where("\"archive_magazines\".\"magazine_id\"=?", o.ID),
 	)
 
 	query := Archives(queryMods...)
@@ -399,7 +400,7 @@ func (magazineL) LoadArchives(e boil.Executor, singular bool, maybeMagazine inte
 			}
 
 			for _, a := range args {
-				if queries.Equal(a, obj.ID) {
+				if a == obj.ID {
 					continue Outer
 				}
 			}
@@ -413,8 +414,10 @@ func (magazineL) LoadArchives(e boil.Executor, singular bool, maybeMagazine inte
 	}
 
 	query := NewQuery(
-		qm.From(`archive`),
-		qm.WhereIn(`archive.magazine_id in ?`, args...),
+		qm.Select("\"archive\".id, \"archive\".path, \"archive\".created_at, \"archive\".updated_at, \"archive\".published_at, \"archive\".title, \"archive\".slug, \"archive\".pages, \"archive\".size, \"a\".\"magazine_id\""),
+		qm.From("\"archive\""),
+		qm.InnerJoin("\"archive_magazines\" as \"a\" on \"archive\".\"id\" = \"a\".\"archive_id\""),
+		qm.WhereIn("\"a\".\"magazine_id\" in ?", args...),
 	)
 	if mods != nil {
 		mods.Apply(query)
@@ -426,8 +429,22 @@ func (magazineL) LoadArchives(e boil.Executor, singular bool, maybeMagazine inte
 	}
 
 	var resultSlice []*Archive
-	if err = queries.Bind(results, &resultSlice); err != nil {
-		return errors.Wrap(err, "failed to bind eager loaded slice archive")
+
+	var localJoinCols []int64
+	for results.Next() {
+		one := new(Archive)
+		var localJoinCol int64
+
+		err = results.Scan(&one.ID, &one.Path, &one.CreatedAt, &one.UpdatedAt, &one.PublishedAt, &one.Title, &one.Slug, &one.Pages, &one.Size, &localJoinCol)
+		if err != nil {
+			return errors.Wrap(err, "failed to scan eager loaded results for archive")
+		}
+		if err = results.Err(); err != nil {
+			return errors.Wrap(err, "failed to plebian-bind eager loaded slice archive")
+		}
+
+		resultSlice = append(resultSlice, one)
+		localJoinCols = append(localJoinCols, localJoinCol)
 	}
 
 	if err = results.Close(); err != nil {
@@ -450,19 +467,20 @@ func (magazineL) LoadArchives(e boil.Executor, singular bool, maybeMagazine inte
 			if foreign.R == nil {
 				foreign.R = &archiveR{}
 			}
-			foreign.R.Magazine = object
+			foreign.R.Magazines = append(foreign.R.Magazines, object)
 		}
 		return nil
 	}
 
-	for _, foreign := range resultSlice {
+	for i, foreign := range resultSlice {
+		localJoinCol := localJoinCols[i]
 		for _, local := range slice {
-			if queries.Equal(local.ID, foreign.MagazineID) {
+			if local.ID == localJoinCol {
 				local.R.Archives = append(local.R.Archives, foreign)
 				if foreign.R == nil {
 					foreign.R = &archiveR{}
 				}
-				foreign.R.Magazine = local
+				foreign.R.Magazines = append(foreign.R.Magazines, local)
 				break
 			}
 		}
@@ -474,7 +492,7 @@ func (magazineL) LoadArchives(e boil.Executor, singular bool, maybeMagazine inte
 // AddArchivesG adds the given related objects to the existing relationships
 // of the magazine, optionally inserting them as new records.
 // Appends related to o.R.Archives.
-// Sets related.R.Magazine appropriately.
+// Sets related.R.Magazines appropriately.
 // Uses the global database handle.
 func (o *Magazine) AddArchivesG(insert bool, related ...*Archive) error {
 	return o.AddArchives(boil.GetDB(), insert, related...)
@@ -483,35 +501,30 @@ func (o *Magazine) AddArchivesG(insert bool, related ...*Archive) error {
 // AddArchives adds the given related objects to the existing relationships
 // of the magazine, optionally inserting them as new records.
 // Appends related to o.R.Archives.
-// Sets related.R.Magazine appropriately.
+// Sets related.R.Magazines appropriately.
 func (o *Magazine) AddArchives(exec boil.Executor, insert bool, related ...*Archive) error {
 	var err error
 	for _, rel := range related {
 		if insert {
-			queries.Assign(&rel.MagazineID, o.ID)
 			if err = rel.Insert(exec, boil.Infer()); err != nil {
 				return errors.Wrap(err, "failed to insert into foreign table")
 			}
-		} else {
-			updateQuery := fmt.Sprintf(
-				"UPDATE \"archive\" SET %s WHERE %s",
-				strmangle.SetParamNames("\"", "\"", 1, []string{"magazine_id"}),
-				strmangle.WhereClause("\"", "\"", 2, archivePrimaryKeyColumns),
-			)
-			values := []interface{}{o.ID, rel.ID}
-
-			if boil.DebugMode {
-				fmt.Fprintln(boil.DebugWriter, updateQuery)
-				fmt.Fprintln(boil.DebugWriter, values)
-			}
-			if _, err = exec.Exec(updateQuery, values...); err != nil {
-				return errors.Wrap(err, "failed to update foreign table")
-			}
-
-			queries.Assign(&rel.MagazineID, o.ID)
 		}
 	}
 
+	for _, rel := range related {
+		query := "insert into \"archive_magazines\" (\"magazine_id\", \"archive_id\") values ($1, $2)"
+		values := []interface{}{o.ID, rel.ID}
+
+		if boil.DebugMode {
+			fmt.Fprintln(boil.DebugWriter, query)
+			fmt.Fprintln(boil.DebugWriter, values)
+		}
+		_, err = exec.Exec(query, values...)
+		if err != nil {
+			return errors.Wrap(err, "failed to insert into join table")
+		}
+	}
 	if o.R == nil {
 		o.R = &magazineR{
 			Archives: related,
@@ -523,10 +536,10 @@ func (o *Magazine) AddArchives(exec boil.Executor, insert bool, related ...*Arch
 	for _, rel := range related {
 		if rel.R == nil {
 			rel.R = &archiveR{
-				Magazine: o,
+				Magazines: MagazineSlice{o},
 			}
 		} else {
-			rel.R.Magazine = o
+			rel.R.Magazines = append(rel.R.Magazines, o)
 		}
 	}
 	return nil
@@ -535,9 +548,9 @@ func (o *Magazine) AddArchives(exec boil.Executor, insert bool, related ...*Arch
 // SetArchivesG removes all previously related items of the
 // magazine replacing them completely with the passed
 // in related items, optionally inserting them as new records.
-// Sets o.R.Magazine's Archives accordingly.
+// Sets o.R.Magazines's Archives accordingly.
 // Replaces o.R.Archives with related.
-// Sets related.R.Magazine's Archives accordingly.
+// Sets related.R.Magazines's Archives accordingly.
 // Uses the global database handle.
 func (o *Magazine) SetArchivesG(insert bool, related ...*Archive) error {
 	return o.SetArchives(boil.GetDB(), insert, related...)
@@ -546,11 +559,11 @@ func (o *Magazine) SetArchivesG(insert bool, related ...*Archive) error {
 // SetArchives removes all previously related items of the
 // magazine replacing them completely with the passed
 // in related items, optionally inserting them as new records.
-// Sets o.R.Magazine's Archives accordingly.
+// Sets o.R.Magazines's Archives accordingly.
 // Replaces o.R.Archives with related.
-// Sets related.R.Magazine's Archives accordingly.
+// Sets related.R.Magazines's Archives accordingly.
 func (o *Magazine) SetArchives(exec boil.Executor, insert bool, related ...*Archive) error {
-	query := "update \"archive\" set \"magazine_id\" = null where \"magazine_id\" = $1"
+	query := "delete from \"archive_magazines\" where \"magazine_id\" = $1"
 	values := []interface{}{o.ID}
 	if boil.DebugMode {
 		fmt.Fprintln(boil.DebugWriter, query)
@@ -561,16 +574,8 @@ func (o *Magazine) SetArchives(exec boil.Executor, insert bool, related ...*Arch
 		return errors.Wrap(err, "failed to remove relationships before set")
 	}
 
+	removeArchivesFromMagazinesSlice(o, related)
 	if o.R != nil {
-		for _, rel := range o.R.Archives {
-			queries.SetScanner(&rel.MagazineID, nil)
-			if rel.R == nil {
-				continue
-			}
-
-			rel.R.Magazine = nil
-		}
-
 		o.R.Archives = nil
 	}
 	return o.AddArchives(exec, insert, related...)
@@ -578,7 +583,7 @@ func (o *Magazine) SetArchives(exec boil.Executor, insert bool, related ...*Arch
 
 // RemoveArchivesG relationships from objects passed in.
 // Removes related items from R.Archives (uses pointer comparison, removal does not keep order)
-// Sets related.R.Magazine.
+// Sets related.R.Magazines.
 // Uses the global database handle.
 func (o *Magazine) RemoveArchivesG(related ...*Archive) error {
 	return o.RemoveArchives(boil.GetDB(), related...)
@@ -586,22 +591,31 @@ func (o *Magazine) RemoveArchivesG(related ...*Archive) error {
 
 // RemoveArchives relationships from objects passed in.
 // Removes related items from R.Archives (uses pointer comparison, removal does not keep order)
-// Sets related.R.Magazine.
+// Sets related.R.Magazines.
 func (o *Magazine) RemoveArchives(exec boil.Executor, related ...*Archive) error {
 	if len(related) == 0 {
 		return nil
 	}
 
 	var err error
+	query := fmt.Sprintf(
+		"delete from \"archive_magazines\" where \"magazine_id\" = $1 and \"archive_id\" in (%s)",
+		strmangle.Placeholders(dialect.UseIndexPlaceholders, len(related), 2, 1),
+	)
+	values := []interface{}{o.ID}
 	for _, rel := range related {
-		queries.SetScanner(&rel.MagazineID, nil)
-		if rel.R != nil {
-			rel.R.Magazine = nil
-		}
-		if err = rel.Update(exec, boil.Whitelist("magazine_id")); err != nil {
-			return err
-		}
+		values = append(values, rel.ID)
 	}
+
+	if boil.DebugMode {
+		fmt.Fprintln(boil.DebugWriter, query)
+		fmt.Fprintln(boil.DebugWriter, values)
+	}
+	_, err = exec.Exec(query, values...)
+	if err != nil {
+		return errors.Wrap(err, "failed to remove relationships before set")
+	}
+	removeArchivesFromMagazinesSlice(o, related)
 	if o.R == nil {
 		return nil
 	}
@@ -622,6 +636,26 @@ func (o *Magazine) RemoveArchives(exec boil.Executor, related ...*Archive) error
 	}
 
 	return nil
+}
+
+func removeArchivesFromMagazinesSlice(o *Magazine, related []*Archive) {
+	for _, rel := range related {
+		if rel.R == nil {
+			continue
+		}
+		for i, ri := range rel.R.Magazines {
+			if o.ID != ri.ID {
+				continue
+			}
+
+			ln := len(rel.R.Magazines)
+			if ln > 1 && i < ln-1 {
+				rel.R.Magazines[i] = rel.R.Magazines[ln-1]
+			}
+			rel.R.Magazines = rel.R.Magazines[:ln-1]
+			break
+		}
+	}
 }
 
 // Magazines retrieves all the records using an executor.
@@ -772,6 +806,10 @@ func (o *Magazine) Update(exec boil.Executor, columns boil.Columns) error {
 			magazineAllColumns,
 			magazinePrimaryKeyColumns,
 		)
+
+		if !columns.IsWhitelist() {
+			wl = strmangle.SetComplement(wl, []string{"created_at"})
+		}
 		if len(wl) == 0 {
 			return errors.New("models: unable to update magazine, could not build whitelist")
 		}

@@ -8,12 +8,11 @@ import (
 	"time"
 
 	. "koushoku/cache"
-	"koushoku/errs"
 
+	"koushoku/errs"
 	"koushoku/models"
 	"koushoku/modext"
 
-	"github.com/gosimple/slug"
 	"github.com/volatiletech/sqlboiler/v4/boil"
 
 	. "github.com/volatiletech/sqlboiler/v4/queries/qm"
@@ -21,14 +20,13 @@ import (
 
 func CreateArtist(name string) (*modext.Artist, error) {
 	name = strings.Title(strings.TrimSpace(name))
-
 	if len(name) == 0 {
 		return nil, errs.ErrArtistNameRequired
 	} else if len(name) > 128 {
 		return nil, errs.ErrArtistNameTooLong
 	}
 
-	slug := slug.Make(name)
+	slug := slugify(name)
 
 	artist, err := models.Artists(Where("slug = ?", slug)).OneG()
 	if err == sql.ErrNoRows {
@@ -92,9 +90,8 @@ func GetArtists(opts GetArtistsOptions) (result *GetArtistsResult) {
 	}()
 
 	q := []QueryMod{
-		Select("artist.*", "COUNT(archive.id) AS archive_count"),
-		InnerJoin("archive_artists ar ON ar.artist_id = artist.id"),
-		InnerJoin("archive ON archive.id = ar.archive_id"),
+		Select("artist.*", "COUNT(archive.artist_id) AS archive_count"),
+		InnerJoin("archive_artists archive ON archive.artist_id = artist.id"),
 		GroupBy("artist.id"),
 		OrderBy("artist.name ASC"),
 	}
@@ -144,7 +141,7 @@ var isArtistValidMap = QueryMapCache{
 }
 
 func IsArtistValid(str string) (isValid bool) {
-	str = slug.Make(str)
+	str = slugify(str)
 
 	isArtistValidMap.RLock()
 	v, ok := isArtistValidMap.Map[str]

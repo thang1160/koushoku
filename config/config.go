@@ -44,13 +44,6 @@ var Config struct {
 		SSLMode string
 	}
 
-	Redis struct {
-		Host   string
-		Port   int
-		DB     int
-		Passwd string
-	}
-
 	Server struct {
 		Port int
 	}
@@ -70,10 +63,9 @@ var Config struct {
 	}
 
 	Paths struct {
-		Batches   string
+		Alias     string
 		Blacklist string
 		Metadata  string
-		Singles   string
 	}
 }
 
@@ -114,14 +106,6 @@ func init() {
 		}
 	}
 
-	Config.Paths.Batches = filepath.Join(Config.Directories.Root, "batches.txt")
-	if _, err := os.Stat(Config.Paths.Batches); os.IsNotExist(err) {
-		log.Println("No batches file found, creating one...")
-		if err := os.WriteFile(Config.Paths.Batches, []byte(""), 0755); err != nil {
-			log.Fatalln(err)
-		}
-	}
-
 	Config.Paths.Blacklist = filepath.Join(Config.Directories.Root, "blacklist.txt")
 	if _, err := os.Stat(Config.Paths.Blacklist); os.IsNotExist(err) {
 		log.Println("No blacklist file found, creating one...")
@@ -138,10 +122,10 @@ func init() {
 		}
 	}
 
-	Config.Paths.Singles = filepath.Join(Config.Directories.Root, "singles.txt")
-	if _, err := os.Stat(Config.Paths.Singles); os.IsNotExist(err) {
-		log.Println("No singles file found, creating one...")
-		if err := os.WriteFile(Config.Paths.Singles, []byte(""), 0755); err != nil {
+	Config.Paths.Alias = filepath.Join(Config.Directories.Root, "alias.txt")
+	if _, err := os.Stat(Config.Paths.Alias); os.IsNotExist(err) {
+		log.Println("No alias file found, creating one...")
+		if err := os.WriteFile(Config.Paths.Alias, []byte("{}"), 0755); err != nil {
 			log.Fatalln(err)
 		}
 	}
@@ -178,11 +162,6 @@ func init() {
 	Config.Database.User = file.Section("database").Key("user").MustString("koushoku")
 	Config.Database.Passwd = file.Section("database").Key("passwd").MustString("koushoku")
 	Config.Database.SSLMode = file.Section("database").Key("ssl_mode").MustString("disable")
-
-	Config.Redis.Host = file.Section("redis").Key("host").MustString("localhost")
-	Config.Redis.Port = file.Section("redis").Key("port").MustInt(6379)
-	Config.Redis.DB = file.Section("redis").Key("db").MustInt(0)
-	Config.Redis.Passwd = file.Section("redis").Key("passwd").String()
 
 	Config.Server.Port = file.Section("server").Key("port").MustInt(42073)
 
@@ -221,11 +200,6 @@ func Save() error {
 	Config.file.Section("database").Key("user").SetValue(Config.Database.User)
 	Config.file.Section("database").Key("passwd").SetValue(Config.Database.Passwd)
 	Config.file.Section("database").Key("ssl_mode").SetValue(Config.Database.SSLMode)
-
-	Config.file.Section("redis").Key("host").SetValue(Config.Redis.Host)
-	Config.file.Section("redis").Key("port").SetValue(strconv.Itoa(Config.Redis.Port))
-	Config.file.Section("redis").Key("db").SetValue(strconv.Itoa(Config.Redis.DB))
-	Config.file.Section("redis").Key("passwd").SetValue(Config.Redis.Passwd)
 
 	Config.file.Section("server").Key("port").SetValue(strconv.Itoa(Config.Server.Port))
 

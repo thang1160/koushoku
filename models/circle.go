@@ -360,7 +360,8 @@ func (o *Circle) Archives(mods ...qm.QueryMod) archiveQuery {
 	}
 
 	queryMods = append(queryMods,
-		qm.Where("\"archive\".\"circle_id\"=?", o.ID),
+		qm.InnerJoin("\"archive_circles\" on \"archive\".\"id\" = \"archive_circles\".\"archive_id\""),
+		qm.Where("\"archive_circles\".\"circle_id\"=?", o.ID),
 	)
 
 	query := Archives(queryMods...)
@@ -399,7 +400,7 @@ func (circleL) LoadArchives(e boil.Executor, singular bool, maybeCircle interfac
 			}
 
 			for _, a := range args {
-				if queries.Equal(a, obj.ID) {
+				if a == obj.ID {
 					continue Outer
 				}
 			}
@@ -413,8 +414,10 @@ func (circleL) LoadArchives(e boil.Executor, singular bool, maybeCircle interfac
 	}
 
 	query := NewQuery(
-		qm.From(`archive`),
-		qm.WhereIn(`archive.circle_id in ?`, args...),
+		qm.Select("\"archive\".id, \"archive\".path, \"archive\".created_at, \"archive\".updated_at, \"archive\".published_at, \"archive\".title, \"archive\".slug, \"archive\".pages, \"archive\".size, \"a\".\"circle_id\""),
+		qm.From("\"archive\""),
+		qm.InnerJoin("\"archive_circles\" as \"a\" on \"archive\".\"id\" = \"a\".\"archive_id\""),
+		qm.WhereIn("\"a\".\"circle_id\" in ?", args...),
 	)
 	if mods != nil {
 		mods.Apply(query)
@@ -426,8 +429,22 @@ func (circleL) LoadArchives(e boil.Executor, singular bool, maybeCircle interfac
 	}
 
 	var resultSlice []*Archive
-	if err = queries.Bind(results, &resultSlice); err != nil {
-		return errors.Wrap(err, "failed to bind eager loaded slice archive")
+
+	var localJoinCols []int64
+	for results.Next() {
+		one := new(Archive)
+		var localJoinCol int64
+
+		err = results.Scan(&one.ID, &one.Path, &one.CreatedAt, &one.UpdatedAt, &one.PublishedAt, &one.Title, &one.Slug, &one.Pages, &one.Size, &localJoinCol)
+		if err != nil {
+			return errors.Wrap(err, "failed to scan eager loaded results for archive")
+		}
+		if err = results.Err(); err != nil {
+			return errors.Wrap(err, "failed to plebian-bind eager loaded slice archive")
+		}
+
+		resultSlice = append(resultSlice, one)
+		localJoinCols = append(localJoinCols, localJoinCol)
 	}
 
 	if err = results.Close(); err != nil {
@@ -450,19 +467,20 @@ func (circleL) LoadArchives(e boil.Executor, singular bool, maybeCircle interfac
 			if foreign.R == nil {
 				foreign.R = &archiveR{}
 			}
-			foreign.R.Circle = object
+			foreign.R.Circles = append(foreign.R.Circles, object)
 		}
 		return nil
 	}
 
-	for _, foreign := range resultSlice {
+	for i, foreign := range resultSlice {
+		localJoinCol := localJoinCols[i]
 		for _, local := range slice {
-			if queries.Equal(local.ID, foreign.CircleID) {
+			if local.ID == localJoinCol {
 				local.R.Archives = append(local.R.Archives, foreign)
 				if foreign.R == nil {
 					foreign.R = &archiveR{}
 				}
-				foreign.R.Circle = local
+				foreign.R.Circles = append(foreign.R.Circles, local)
 				break
 			}
 		}
@@ -474,7 +492,7 @@ func (circleL) LoadArchives(e boil.Executor, singular bool, maybeCircle interfac
 // AddArchivesG adds the given related objects to the existing relationships
 // of the circle, optionally inserting them as new records.
 // Appends related to o.R.Archives.
-// Sets related.R.Circle appropriately.
+// Sets related.R.Circles appropriately.
 // Uses the global database handle.
 func (o *Circle) AddArchivesG(insert bool, related ...*Archive) error {
 	return o.AddArchives(boil.GetDB(), insert, related...)
@@ -483,35 +501,30 @@ func (o *Circle) AddArchivesG(insert bool, related ...*Archive) error {
 // AddArchives adds the given related objects to the existing relationships
 // of the circle, optionally inserting them as new records.
 // Appends related to o.R.Archives.
-// Sets related.R.Circle appropriately.
+// Sets related.R.Circles appropriately.
 func (o *Circle) AddArchives(exec boil.Executor, insert bool, related ...*Archive) error {
 	var err error
 	for _, rel := range related {
 		if insert {
-			queries.Assign(&rel.CircleID, o.ID)
 			if err = rel.Insert(exec, boil.Infer()); err != nil {
 				return errors.Wrap(err, "failed to insert into foreign table")
 			}
-		} else {
-			updateQuery := fmt.Sprintf(
-				"UPDATE \"archive\" SET %s WHERE %s",
-				strmangle.SetParamNames("\"", "\"", 1, []string{"circle_id"}),
-				strmangle.WhereClause("\"", "\"", 2, archivePrimaryKeyColumns),
-			)
-			values := []interface{}{o.ID, rel.ID}
-
-			if boil.DebugMode {
-				fmt.Fprintln(boil.DebugWriter, updateQuery)
-				fmt.Fprintln(boil.DebugWriter, values)
-			}
-			if _, err = exec.Exec(updateQuery, values...); err != nil {
-				return errors.Wrap(err, "failed to update foreign table")
-			}
-
-			queries.Assign(&rel.CircleID, o.ID)
 		}
 	}
 
+	for _, rel := range related {
+		query := "insert into \"archive_circles\" (\"circle_id\", \"archive_id\") values ($1, $2)"
+		values := []interface{}{o.ID, rel.ID}
+
+		if boil.DebugMode {
+			fmt.Fprintln(boil.DebugWriter, query)
+			fmt.Fprintln(boil.DebugWriter, values)
+		}
+		_, err = exec.Exec(query, values...)
+		if err != nil {
+			return errors.Wrap(err, "failed to insert into join table")
+		}
+	}
 	if o.R == nil {
 		o.R = &circleR{
 			Archives: related,
@@ -523,10 +536,10 @@ func (o *Circle) AddArchives(exec boil.Executor, insert bool, related ...*Archiv
 	for _, rel := range related {
 		if rel.R == nil {
 			rel.R = &archiveR{
-				Circle: o,
+				Circles: CircleSlice{o},
 			}
 		} else {
-			rel.R.Circle = o
+			rel.R.Circles = append(rel.R.Circles, o)
 		}
 	}
 	return nil
@@ -535,9 +548,9 @@ func (o *Circle) AddArchives(exec boil.Executor, insert bool, related ...*Archiv
 // SetArchivesG removes all previously related items of the
 // circle replacing them completely with the passed
 // in related items, optionally inserting them as new records.
-// Sets o.R.Circle's Archives accordingly.
+// Sets o.R.Circles's Archives accordingly.
 // Replaces o.R.Archives with related.
-// Sets related.R.Circle's Archives accordingly.
+// Sets related.R.Circles's Archives accordingly.
 // Uses the global database handle.
 func (o *Circle) SetArchivesG(insert bool, related ...*Archive) error {
 	return o.SetArchives(boil.GetDB(), insert, related...)
@@ -546,11 +559,11 @@ func (o *Circle) SetArchivesG(insert bool, related ...*Archive) error {
 // SetArchives removes all previously related items of the
 // circle replacing them completely with the passed
 // in related items, optionally inserting them as new records.
-// Sets o.R.Circle's Archives accordingly.
+// Sets o.R.Circles's Archives accordingly.
 // Replaces o.R.Archives with related.
-// Sets related.R.Circle's Archives accordingly.
+// Sets related.R.Circles's Archives accordingly.
 func (o *Circle) SetArchives(exec boil.Executor, insert bool, related ...*Archive) error {
-	query := "update \"archive\" set \"circle_id\" = null where \"circle_id\" = $1"
+	query := "delete from \"archive_circles\" where \"circle_id\" = $1"
 	values := []interface{}{o.ID}
 	if boil.DebugMode {
 		fmt.Fprintln(boil.DebugWriter, query)
@@ -561,16 +574,8 @@ func (o *Circle) SetArchives(exec boil.Executor, insert bool, related ...*Archiv
 		return errors.Wrap(err, "failed to remove relationships before set")
 	}
 
+	removeArchivesFromCirclesSlice(o, related)
 	if o.R != nil {
-		for _, rel := range o.R.Archives {
-			queries.SetScanner(&rel.CircleID, nil)
-			if rel.R == nil {
-				continue
-			}
-
-			rel.R.Circle = nil
-		}
-
 		o.R.Archives = nil
 	}
 	return o.AddArchives(exec, insert, related...)
@@ -578,7 +583,7 @@ func (o *Circle) SetArchives(exec boil.Executor, insert bool, related ...*Archiv
 
 // RemoveArchivesG relationships from objects passed in.
 // Removes related items from R.Archives (uses pointer comparison, removal does not keep order)
-// Sets related.R.Circle.
+// Sets related.R.Circles.
 // Uses the global database handle.
 func (o *Circle) RemoveArchivesG(related ...*Archive) error {
 	return o.RemoveArchives(boil.GetDB(), related...)
@@ -586,22 +591,31 @@ func (o *Circle) RemoveArchivesG(related ...*Archive) error {
 
 // RemoveArchives relationships from objects passed in.
 // Removes related items from R.Archives (uses pointer comparison, removal does not keep order)
-// Sets related.R.Circle.
+// Sets related.R.Circles.
 func (o *Circle) RemoveArchives(exec boil.Executor, related ...*Archive) error {
 	if len(related) == 0 {
 		return nil
 	}
 
 	var err error
+	query := fmt.Sprintf(
+		"delete from \"archive_circles\" where \"circle_id\" = $1 and \"archive_id\" in (%s)",
+		strmangle.Placeholders(dialect.UseIndexPlaceholders, len(related), 2, 1),
+	)
+	values := []interface{}{o.ID}
 	for _, rel := range related {
-		queries.SetScanner(&rel.CircleID, nil)
-		if rel.R != nil {
-			rel.R.Circle = nil
-		}
-		if err = rel.Update(exec, boil.Whitelist("circle_id")); err != nil {
-			return err
-		}
+		values = append(values, rel.ID)
 	}
+
+	if boil.DebugMode {
+		fmt.Fprintln(boil.DebugWriter, query)
+		fmt.Fprintln(boil.DebugWriter, values)
+	}
+	_, err = exec.Exec(query, values...)
+	if err != nil {
+		return errors.Wrap(err, "failed to remove relationships before set")
+	}
+	removeArchivesFromCirclesSlice(o, related)
 	if o.R == nil {
 		return nil
 	}
@@ -622,6 +636,26 @@ func (o *Circle) RemoveArchives(exec boil.Executor, related ...*Archive) error {
 	}
 
 	return nil
+}
+
+func removeArchivesFromCirclesSlice(o *Circle, related []*Archive) {
+	for _, rel := range related {
+		if rel.R == nil {
+			continue
+		}
+		for i, ri := range rel.R.Circles {
+			if o.ID != ri.ID {
+				continue
+			}
+
+			ln := len(rel.R.Circles)
+			if ln > 1 && i < ln-1 {
+				rel.R.Circles[i] = rel.R.Circles[ln-1]
+			}
+			rel.R.Circles = rel.R.Circles[:ln-1]
+			break
+		}
+	}
 }
 
 // Circles retrieves all the records using an executor.
@@ -772,6 +806,10 @@ func (o *Circle) Update(exec boil.Executor, columns boil.Columns) error {
 			circleAllColumns,
 			circlePrimaryKeyColumns,
 		)
+
+		if !columns.IsWhitelist() {
+			wl = strmangle.SetComplement(wl, []string{"created_at"})
+		}
 		if len(wl) == 0 {
 			return errors.New("models: unable to update circle, could not build whitelist")
 		}

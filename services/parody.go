@@ -8,26 +8,24 @@ import (
 	"time"
 
 	. "koushoku/cache"
-	"koushoku/errs"
 
+	"koushoku/errs"
 	"koushoku/models"
 	"koushoku/modext"
 
-	"github.com/gosimple/slug"
 	"github.com/volatiletech/sqlboiler/v4/boil"
 	. "github.com/volatiletech/sqlboiler/v4/queries/qm"
 )
 
 func CreateParody(name string) (*modext.Parody, error) {
 	name = strings.Title(strings.TrimSpace(name))
-
 	if len(name) == 0 {
 		return nil, errs.ErrParodyNameRequired
 	} else if len(name) > 128 {
 		return nil, errs.ErrParodyNameTooLong
 	}
 
-	slug := slug.Make(name)
+	slug := slugify(name)
 
 	parody, err := models.Parodies(Where("slug = ?", slug)).OneG()
 	if err == sql.ErrNoRows {
@@ -91,8 +89,8 @@ func GetParodies(opts GetParodiesOptions) (result *GetParodiesResult) {
 	}()
 
 	q := []QueryMod{
-		Select("parody.*", "COUNT(archive.id) AS archive_count"),
-		InnerJoin("archive ON archive.parody_id = parody.id"),
+		Select("parody.*", "COUNT(archive.parody_id) AS archive_count"),
+		InnerJoin("archive_parodies archive ON archive.parody_id = parody.id"),
 		GroupBy("parody.id"),
 		OrderBy("parody.name ASC"),
 	}
@@ -142,7 +140,7 @@ var isParodyValidMap = QueryMapCache{
 }
 
 func IsParodyValid(str string) (isValid bool) {
-	str = slug.Make(str)
+	str = slugify(str)
 
 	isParodyValidMap.RLock()
 	v, ok := isParodyValidMap.Map[str]

@@ -4,21 +4,27 @@
 package models
 
 var TableNames = struct {
-	Archive        string
-	ArchiveArtists string
-	ArchiveTags    string
-	Artist         string
-	Circle         string
-	Magazine       string
-	Parody         string
-	Tag            string
+	Archive          string
+	ArchiveArtists   string
+	ArchiveCircles   string
+	ArchiveMagazines string
+	ArchiveParodies  string
+	ArchiveTags      string
+	Artist           string
+	Circle           string
+	Magazine         string
+	Parody           string
+	Tag              string
 }{
-	Archive:        "archive",
-	ArchiveArtists: "archive_artists",
-	ArchiveTags:    "archive_tags",
-	Artist:         "artist",
-	Circle:         "circle",
-	Magazine:       "magazine",
-	Parody:         "parody",
-	Tag:            "tag",
+	Archive:          "archive",
+	ArchiveArtists:   "archive_artists",
+	ArchiveCircles:   "archive_circles",
+	ArchiveMagazines: "archive_magazines",
+	ArchiveParodies:  "archive_parodies",
+	ArchiveTags:      "archive_tags",
+	Artist:           "artist",
+	Circle:           "circle",
+	Magazine:         "magazine",
+	Parody:           "parody",
+	Tag:              "tag",
 }

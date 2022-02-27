@@ -54,11 +54,7 @@ CREATE TABLE IF NOT EXISTS archive (
   title             VARCHAR(1024) NOT NULL DEFAULT NULL,
   slug              VARCHAR(1024) NOT NULL DEFAULT NULL,
   pages             SMALLINT NOT NULL DEFAULT NULL,
-  size              BIGINT NOT NULL DEFAULT NULL,
-
-  circle_id         BIGINT DEFAULT NULL REFERENCES circle(id) ON DELETE SET NULL,
-  magazine_id       BIGINT DEFAULT NULL REFERENCES magazine(id) ON DELETE SET NULL,
-  parody_id         BIGINT DEFAULT NULL REFERENCES parody(id) ON DELETE SET NULL
+  size              BIGINT NOT NULL DEFAULT NULL
 );
 
 CREATE UNIQUE INDEX IF NOT EXISTS archive_path_uindex ON archive(path);
@@ -68,9 +64,6 @@ CREATE INDEX IF NOT EXISTS archive_created_at_index ON archive(created_at);
 CREATE INDEX IF NOT EXISTS archive_updated_at_index ON archive(updated_at);
 CREATE INDEX IF NOT EXISTS archive_published_at_index ON archive(published_at);
 CREATE INDEX IF NOT EXISTS archive_title_index ON archive(title);
-CREATE INDEX IF NOT EXISTS archive_circle_id_index ON archive(circle_id);
-CREATE INDEX IF NOT EXISTS archive_magazine_id_index ON archive(magazine_id);
-CREATE INDEX IF NOT EXISTS archive_parody_id_index ON archive(parody_id);
 
 CREATE TABLE IF NOT EXISTS archive_artists (
   archive_id BIGINT NOT NULL DEFAULT NULL REFERENCES archive(id) ON DELETE CASCADE,
@@ -80,6 +73,33 @@ CREATE TABLE IF NOT EXISTS archive_artists (
 
 CREATE INDEX IF NOT EXISTS archive_artists_archive_id_index ON archive_artists(archive_id);
 CREATE INDEX IF NOT EXISTS archive_artists_artist_id_index ON archive_artists(artist_id);
+
+CREATE TABLE IF NOT EXISTS archive_circles (
+  archive_id BIGINT NOT NULL DEFAULT NULL REFERENCES archive(id) ON DELETE CASCADE,
+  circle_id BIGINT NOT NULL DEFAULT NULL REFERENCES circle(id) ON DELETE CASCADE,
+  PRIMARY KEY(archive_id, circle_id)
+);
+
+CREATE INDEX IF NOT EXISTS archive_circles_archive_id_index ON archive_circles(archive_id);
+CREATE INDEX IF NOT EXISTS archive_circles_circle_id_index ON archive_circles(circle_id);
+
+CREATE TABLE IF NOT EXISTS archive_magazines (
+  archive_id BIGINT NOT NULL DEFAULT NULL REFERENCES archive(id) ON DELETE CASCADE,
+  magazine_id BIGINT NOT NULL DEFAULT NULL REFERENCES magazine(id) ON DELETE CASCADE,
+  PRIMARY KEY(archive_id, magazine_id)
+);
+
+CREATE INDEX IF NOT EXISTS archive_magazines_archive_id_index ON archive_magazines(archive_id);
+CREATE INDEX IF NOT EXISTS archive_magazines_magazine_id_index ON archive_magazines(magazine_id);
+
+CREATE TABLE IF NOT EXISTS archive_parodies (
+  archive_id BIGINT NOT NULL DEFAULT NULL REFERENCES archive(id) ON DELETE CASCADE,
+  parody_id BIGINT NOT NULL DEFAULT NULL REFERENCES parody(id) ON DELETE CASCADE,
+  PRIMARY KEY(archive_id, parody_id)
+);
+
+CREATE INDEX IF NOT EXISTS archive_parodies_archive_id_index ON archive_parodies(archive_id);
+CREATE INDEX IF NOT EXISTS archive_parodies_parody_id_index ON archive_parodies(parody_id);
 
 CREATE TABLE IF NOT EXISTS archive_tags (
   archive_id BIGINT NOT NULL DEFAULT NULL REFERENCES archive(id) ON DELETE CASCADE,

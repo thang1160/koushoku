@@ -1,8 +1,11 @@
 package server
 
 import (
+	"fmt"
+	"io"
 	"net/http"
 	"net/url"
+	"os"
 	"strconv"
 	"strings"
 	"sync"
@@ -11,6 +14,7 @@ import (
 	. "koushoku/config"
 
 	"github.com/gin-gonic/gin"
+	"github.com/juju/ratelimit"
 )
 
 type Context struct {
@@ -142,4 +146,64 @@ func (c *Context) ParamInt(name string) (int, error) {
 
 func (c *Context) ParamInt64(name string) (int64, error) {
 	return strconv.ParseInt(c.Param(name), 10, 64)
+}
+
+type readLimiter struct {
+	io.ReadSeeker
+	r io.Reader
+}
+
+func (r readLimiter) Read(p []byte) (int, error) {
+	return r.r.Read(p)
+}
+
+const (
+	rate     = 1 << 20
+	capacity = 1 << 20
+)
+
+func (c *Context) serveContent(stream bool, stat os.FileInfo, content io.ReadSeeker) {
+	if stream {
+		c.Writer.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s\"", stat.Name()))
+	}
+
+	bucket := ratelimit.NewBucketWithRate(rate, capacity)
+	limiter := readLimiter{content, ratelimit.Reader(content, bucket)}
+	http.ServeContent(c.Writer, c.Request, stat.Name(), stat.ModTime(), limiter)
+}
+
+func (c *Context) serveFile(stream bool, filepath string) {
+	stat, err := os.Stat(filepath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			c.Status(http.StatusNotFound)
+		} else {
+			c.Status(http.StatusInternalServerError)
+		}
+		return
+	}
+
+	f, err := os.Open(filepath)
+	if err != nil {
+		c.Status(http.StatusInternalServerError)
+		return
+	}
+	defer f.Close()
+	c.serveContent(stream, stat, f)
+}
+
+func (c *Context) ServeFile(filepath string) {
+	c.serveFile(false, filepath)
+}
+
+func (c *Context) StreamFile(filepath string) {
+	c.serveFile(true, filepath)
+}
+
+func (c *Context) ServeData(stat os.FileInfo, data io.ReadSeeker) {
+	c.serveContent(false, stat, data)
+}
+
+func (c *Context) StreamData(stat os.FileInfo, data io.ReadSeeker) {
+	c.serveContent(true, stat, data)
 }

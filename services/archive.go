@@ -2,13 +2,10 @@ package services
 
 import (
 	"archive/zip"
-	"bytes"
 	"database/sql"
 	"fmt"
-	"io"
 	"io/fs"
 	"log"
-	"net/http"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -38,234 +35,245 @@ var (
 	ArchiveRels = models.ArchiveRels
 )
 
-func checkArchiveFileThumbnail(id, index, width int, w http.ResponseWriter, r *http.Request) (string, bool) {
-	var fp string
-	if width > 0 && width <= 1024 && width%128 == 0 {
-		fp = filepath.Join(Config.Directories.Thumbnails, fmt.Sprintf("%d-%d.%d.jpg", id, index+1, width))
-		if _, err := os.Stat(fp); err == nil {
-			http.ServeFile(w, r, fp)
-			return fp, true
-		}
-	}
-	return fp, false
+func init() {
+	slug.CustomSub = make(map[string]string)
+	slug.CustomSub["☆"] = "-"
 }
 
-func createArchiveThumbnail(f io.Reader, fp string, width int, w http.ResponseWriter, r *http.Request) (ok bool) {
-	tmp, err := os.CreateTemp("", "tmp-")
-	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		return
-	}
-	defer func() {
-		tmp.Close()
-		os.Remove(tmp.Name())
-	}()
-
-	if _, err := io.Copy(tmp, f); err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		return
-	}
-
-	opts := ResizeOptions{
-		Width:  width,
-		Height: width * 3 / 2,
-		Crop:   true,
-	}
-
-	if err := resizeImage(tmp.Name(), fp, opts); err != nil {
-		log.Println(err)
-		w.WriteHeader(http.StatusInternalServerError)
-		return
-	}
-	return true
-}
-
-func PurgeArchiveThumbnails() {
-	if err := os.RemoveAll(Config.Directories.Thumbnails); err != nil {
-		log.Fatalln(err)
-	} else if err := os.MkdirAll(Config.Directories.Thumbnails, 0755); err != nil {
-		log.Fatalln(err)
-	}
-}
-
-func ServeArchive(id int64, w http.ResponseWriter, r *http.Request) {
-	path, err := GetArchiveSymlink(int(id))
-	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		return
-	} else if len(path) == 0 {
-		w.WriteHeader(http.StatusNotFound)
-		return
-	}
-
-	stat, err := os.Stat(path)
-	if err != nil {
-		if os.IsNotExist(err) {
-			w.WriteHeader(http.StatusNotFound)
-		} else {
-			w.WriteHeader(http.StatusInternalServerError)
-		}
-		return
-	}
-
-	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s\"", stat.Name()))
-	http.ServeFile(w, r, path)
-}
-
-func ServeArchiveFile(id, index, width int, w http.ResponseWriter, r *http.Request) {
-	path, err := GetArchiveSymlink(id)
-	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		return
-	} else if len(path) == 0 {
-		w.WriteHeader(http.StatusNotFound)
-		return
-	}
-
-	fp, ok := checkArchiveFileThumbnail(id, index, width, w, r)
-	if ok {
-		return
-	}
-
-	z, err := zip.OpenReader(path)
-	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		return
-	}
-	defer z.Close()
-
-	if index > len(z.File) {
-		w.WriteHeader(http.StatusNotFound)
-		return
-	}
-
-	var file *zip.File
-	var d fs.FileInfo
-
-	for true {
-		file = z.File[index]
-		d = file.FileInfo()
-
-		if d.IsDir() {
-			index++
-			continue
-		}
-		break
-	}
-
-	f, err := file.Open()
-	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		return
-	}
-	defer f.Close()
-
-	if len(fp) > 0 {
-		if createArchiveThumbnail(f, fp, width, w, r) {
-			http.ServeFile(w, r, fp)
-		}
-	} else {
-		buf, err := io.ReadAll(f)
-		if err != nil {
-			w.WriteHeader(http.StatusInternalServerError)
-			return
-		}
-		http.ServeContent(w, r, d.Name(), d.ModTime(), bytes.NewReader(buf))
-	}
-}
-
-var archiveRgx = regexp.MustCompile(`(\(|\[)?[^\(\[\]\)]+(\)|\])?`)
+var archiveRgx = regexp.MustCompile(`(\(|\[|\{)?[^\(\[\{\}\]\)]+(\}\)|\])?`)
+var replRgx = regexp.MustCompile(`(?i)(fakku|irodori comics|x?\d+00x?)`)
 
 func populateArchive(archive *modext.Archive) error {
 	if archive == nil {
 		return nil
 	}
 
-	fileName := filepath.Base(archive.Path)
-	matches := archiveRgx.FindAllString(strings.TrimRight(fileName, filepath.Ext(archive.Path)), -1)
+	fileName := FileName(archive.Path)
+	if stat, err := os.Stat(archive.Path); err == nil {
+		archive.Size = stat.Size()
+	} else {
+		return err
+	}
+
+	var (
+		artists   = make(map[string]string)
+		circles   = make(map[string]string)
+		magazines = make(map[string]string)
+		parodies  = make(map[string]string)
+		tags      = make(map[string]string)
+	)
+
+	if metadata, ok := metadataMap.Map[slugify(fileName)]; ok {
+		for _, parody := range metadata.Parodies {
+			slug := slugify(parody)
+			if v, ok := alias.Parodies[slug]; ok {
+				slug = slugify(v)
+				parody = v
+			}
+			parodies[slug] = parody
+		}
+
+		for _, tag := range metadata.Tags {
+			slug := slugify(tag)
+			if v, ok := alias.Tags[slug]; ok {
+				tag = v
+				slug = slugify(v)
+			}
+			if _, ok := blacklist.Tags[slug]; ok {
+				return nil
+			}
+			tags[slug] = tag
+		}
+	}
+
+	matches := archiveRgx.FindAllString(fileName, -1)
 	if len(matches) == 0 {
 		return nil
 	}
 
-	var artists []string
-	var circle, magazine, title string
-
+	var title string
 	for i, match := range matches {
 		match = strings.TrimSpace(match)
 		if len(match) == 0 {
 			continue
 		}
 
-		if i == 0 && strings.HasPrefix(match, "[") {
-			match = strings.TrimPrefix(match, "[")
-			match = strings.TrimSuffix(match, "]")
-
-			artists = append(artists, match)
-			continue
-		}
-
-		if i == 1 && strings.HasPrefix(match, "(") {
-			match = strings.TrimPrefix(match, "(")
-			match = strings.TrimSuffix(match, ")")
-
-			if len(artists) > 0 {
-				circle = artists[0]
-				artists = artists[1:]
-			}
-
-			names := strings.Split(match, ",")
-			for _, name := range names {
-				artists = append(artists, strings.TrimSpace(name))
-			}
-			continue
-		}
-
-		if (i == 2 || i == 3) && strings.HasPrefix(match, "(") {
-			match = strings.TrimPrefix(match, "(")
-			match = strings.TrimSuffix(match, ")")
-
-			if i < len(matches)-1 {
-				next := matches[i+1]
-				if len(next) > 0 && !(strings.HasPrefix(match, "(") || strings.HasSuffix(match, "[")) {
+		if strings.HasPrefix(match, "[") {
+			if i == 0 {
+				match = strings.TrimSuffix(strings.TrimPrefix(match, "["), "]")
+				if match = strings.TrimSpace(match); len(match) == 0 {
 					continue
+				}
+
+				names := strings.Split(match, ",")
+				for _, name := range names {
+					if name = strings.TrimSpace(name); len(name) > 0 {
+						artists[slugify(name)] = name
+					}
 				}
 			}
 
-			if strings.HasPrefix(match, "x") || strings.EqualFold(match, "temp") ||
-				strings.EqualFold(match, "strong") || strings.EqualFold(match, "complete") {
+		} else if strings.HasPrefix(match, "(") {
+			if i == 1 {
+				match = strings.TrimSuffix(strings.TrimPrefix(match, "("), ")")
+				if match = strings.TrimSpace(match); len(match) == 0 {
+					continue
+				}
+
+				if len(artists) > 0 {
+					for k, v := range artists {
+						circles[k] = v
+						delete(artists, k)
+					}
+				}
+
+				names := strings.Split(match, ",")
+				for _, name := range names {
+					if name = strings.TrimSpace(name); len(name) > 0 {
+						artists[slugify(name)] = name
+					}
+				}
+			} else if i == 2 || i == 3 {
+				match = strings.TrimSuffix(strings.TrimPrefix(match, "("), ")")
+				if match = strings.TrimSpace(match); len(match) == 0 {
+					continue
+				}
+
+				if i < len(matches)-1 {
+					next := matches[i+1]
+					if len(next) > 0 &&
+						!(strings.HasPrefix(match, "[") ||
+							strings.HasPrefix(match, "(") ||
+							strings.HasPrefix(next, "{")) {
+						continue
+					}
+				}
+
+				if strings.HasPrefix(match, "x") ||
+					strings.EqualFold(match, "temp") ||
+					strings.EqualFold(match, "strong") ||
+					strings.EqualFold(match, "complete") {
+					continue
+				}
+
+				names := strings.Split(match, ", ")
+				for _, name := range names {
+					if name = strings.TrimSpace(name); len(name) > 0 {
+						magazines[slugify(name)] = name
+					}
+				}
+			}
+		} else if strings.HasPrefix(match, "{") {
+			match = strings.TrimSuffix(strings.TrimPrefix(match, "{"), "}")
+			match = strings.TrimSpace(match)
+
+			if len(match) == 0 ||
+				strings.Contains(slugify(match), "comic") ||
+				strings.Contains(slugify(match), "2d-market") {
 				continue
 			}
 
-			magazine = match
-			continue
-		}
+			match = strings.ReplaceAll(match, "zero gravity", "zero-gravity")
+			match = strings.ReplaceAll(match, "dark skin", "dark-skin")
+			match = strings.ReplaceAll(match, "heart pupil", "heart-pupil")
 
-		if i == 1 || i == 2 {
-			title = match
-		}
-	}
-
-	t := strings.ToLower(title)
-	if _, ok := blacklist.Archives[t]; ok {
-		return nil
-	} else {
-		for _, v := range blacklist.ArchivesP {
-			if strings.HasPrefix(t, v) {
-				return nil
+			names := strings.Split(match, " ")
+			for _, name := range names {
+				name = strings.TrimSpace(name)
+				if len(name) > 0 {
+					tags[slugify(name)] = strings.ReplaceAll(name, "-", " ")
+				}
+			}
+		} else if i == 1 || i == 2 {
+			match = strings.TrimSpace(replRgx.ReplaceAllString(match, ""))
+			if len(match) > 0 {
+				title = match
 			}
 		}
 	}
 
-	for _, v := range artists {
-		if _, ok := blacklist.Artists[strings.ToLower(v)]; ok {
+	titleSlug := slugify(title)
+	if v, ok := alias.Archives[titleSlug]; ok {
+		titleSlug = slugify(title)
+		title = v
+	}
+
+	if _, ok := blacklist.Archives[titleSlug]; ok {
+		return nil
+	}
+
+	for _, v := range blacklist.ArchivesG {
+		if strings.Contains(titleSlug, v) {
 			return nil
 		}
 	}
 
-	if d, err := os.Stat(archive.Path); err == nil {
-		archive.Size = d.Size()
-	} else {
-		return err
+	for slug, artist := range artists {
+		if v, ok := alias.Artists[slug]; ok {
+			slug = slugify(v)
+			artist = v
+		}
+		if _, ok := blacklist.Artists[slug]; ok {
+			return nil
+		}
+		archive.Artists = append(archive.Artists,
+			&modext.Artist{Slug: slug, Name: artist})
+	}
+
+	for slug, circle := range circles {
+		if v, ok := alias.Circles[slug]; ok {
+			slug = slugify(v)
+			circle = v
+		}
+		if _, ok := blacklist.Circles[slug]; ok {
+			return nil
+		}
+		archive.Circles = append(archive.Circles,
+			&modext.Circle{Slug: slug, Name: circle})
+	}
+
+	for slug, magazine := range magazines {
+		if v, ok := alias.Magazines[slug]; ok {
+			slug = slugify(v)
+			magazine = v
+		}
+		if _, ok := blacklist.Magazines[slug]; ok {
+			return nil
+		}
+		archive.Magazines = append(archive.Magazines,
+			&modext.Magazine{Slug: slug, Name: magazine})
+	}
+
+	for slug, parody := range parodies {
+		if v, ok := alias.Parodies[slug]; ok {
+			slug = slugify(v)
+			parody = v
+		}
+		archive.Parodies = append(archive.Parodies,
+			&modext.Parody{Slug: slug, Name: parody})
+	}
+
+	for slug, tag := range tags {
+		if v, ok := alias.Tags[slug]; ok {
+			slug = slugify(v)
+			tag = v
+		}
+		if _, ok := blacklist.Tags[slug]; ok {
+			return nil
+		}
+
+		isDuplicate := false
+		for _, t := range archive.Tags {
+			if slug == slugify(t.Name) {
+				isDuplicate = true
+				break
+			}
+		}
+
+		if !isDuplicate {
+			archive.Tags = append(archive.Tags,
+				&modext.Tag{Slug: slug, Name: tag})
+		}
 	}
 
 	zf, err := zip.OpenReader(archive.Path)
@@ -279,16 +287,18 @@ func populateArchive(archive *modext.Archive) error {
 	defer zf.Close()
 
 	for _, f := range zf.File {
-		d := f.FileInfo()
-		name := d.Name()
-		if d.IsDir() || !(strings.HasSuffix(name, ".jpg") ||
-			strings.HasSuffix(name, ".png")) {
+		stat := f.FileInfo()
+		name := stat.Name()
+
+		if stat.IsDir() ||
+			!(strings.HasSuffix(name, ".jpg") ||
+				strings.HasSuffix(name, ".png")) {
 			continue
 		}
 
 		archive.Pages++
 		if archive.CreatedAt == 0 {
-			archive.CreatedAt = d.ModTime().Unix()
+			archive.CreatedAt = stat.ModTime().Unix()
 		}
 	}
 
@@ -297,33 +307,12 @@ func populateArchive(archive *modext.Archive) error {
 	}
 
 	archive.Title = title
+	archive.Slug = titleSlug
 
-	if len(circle) > 0 {
-		archive.Circle = &modext.Circle{Name: circle}
-	}
-
-	if len(magazine) > 0 {
-		archive.Magazine = &modext.Magazine{Name: magazine}
-	}
-
-	archive.Artists = make([]*modext.Artist, len(artists))
-	for i, artist := range artists {
-		archive.Artists[i] = &modext.Artist{Name: artist}
-	}
-
-	metadata, ok := metadataMap.Map[fileName]
-	if !ok {
-		return nil
-	}
-
-	archive.Parody = &modext.Parody{Name: metadata.Parody}
-	for _, tag := range metadata.Tags {
-		archive.Tags = append(archive.Tags, &modext.Tag{Name: tag})
-	}
 	return nil
 }
 
-var pBlacklist = []string{
+var pathBlacklist = []string{
 	"/cover",
 	"/doujin",
 	"/illustration",
@@ -331,12 +320,11 @@ var pBlacklist = []string{
 	"/non-h",
 	"/spread",
 	"/western",
-	"Key-Visual Collection",
-	"Kairakuten Cover",
+	"/D/",
 }
 
-func isBlacklisted(path string) bool {
-	for _, p := range pBlacklist {
+func isPathBlacklisted(path string) bool {
+	for _, p := range pathBlacklist {
 		if strings.Contains(path, p) {
 			return true
 		}
@@ -351,12 +339,13 @@ func IndexArchives() {
 		}
 	}
 
+	initAlias()
 	initBlacklist()
 	initMetadata()
 
 	var files []string
 	walkFn := func(path string, info fs.FileInfo, err error) error {
-		if err != nil || info.IsDir() || isBlacklisted(path) {
+		if err != nil || info.IsDir() || isPathBlacklisted(path) {
 			return err
 		}
 
@@ -372,12 +361,14 @@ func IndexArchives() {
 	var wg sync.WaitGroup
 	wg.Add(len(files))
 
-	c := make(chan bool, 5)
+	c := make(chan bool, 20)
 	defer func() {
 		close(c)
 	}()
 
 	var archives []*modext.Archive
+	var mu sync.Mutex
+
 	for _, path := range files {
 		c <- true
 
@@ -394,7 +385,9 @@ func IndexArchives() {
 			}
 
 			if len(archive.Title) > 0 {
+				mu.Lock()
 				archives = append(archives, archive)
+				mu.Unlock()
 			}
 		}(path)
 	}
@@ -420,37 +413,51 @@ func IndexArchives() {
 			}
 		}(archive)
 	}
-
 	wg.Wait()
 }
 
 func ModerateArchives() {
 	initBlacklist()
 
-	archives, err := models.Archives(Load(ArchiveRels.Artists)).AllG()
+	archives, err := models.Archives(
+		Load(ArchiveRels.Artists),
+		Load(ArchiveRels.Tags),
+	).AllG()
 	if err != nil {
 		log.Fatalln(err)
 	}
 
 	for _, archive := range archives {
-		title := strings.ToLower(archive.Title)
-		_, remove := blacklist.Archives[title]
+		titleSlug := slugify(archive.Title)
+		_, remove := blacklist.Archives[titleSlug]
+
 		if archive.R != nil && len(archive.R.Artists) > 0 {
 			for _, artist := range archive.R.Artists {
-				if _, ok := blacklist.Artists[strings.ToLower(artist.Name)]; ok {
+				if _, ok := blacklist.Artists[slugify(artist.Name)]; ok {
 					artist.DeleteG()
 					remove = true
 				}
 			}
 		}
+
 		if !remove {
-			for _, t := range blacklist.ArchivesP {
-				if strings.HasPrefix(title, t) {
+			for _, t := range blacklist.ArchivesG {
+				if strings.Contains(titleSlug, t) {
 					remove = true
 					break
 				}
 			}
 		}
+
+		if !remove && archive.R != nil && len(archive.R.Tags) > 0 {
+			for _, tag := range archive.R.Tags {
+				if _, ok := blacklist.Tags[slugify(tag.Name)]; ok {
+					tag.DeleteG()
+					remove = true
+				}
+			}
+		}
+
 		if remove {
 			log.Println("Removing archive", archive.Path)
 			DeleteArchive(archive.ID)
@@ -482,47 +489,55 @@ func refreshArchiveRels(e boil.Executor, arc *models.Archive, archive *modext.Ar
 		refreshArchiveRelsCache.Tags = make(map[string]*models.Tag)
 	})
 
-	var artists []*models.Artist
-	for _, artist := range archive.Artists {
-		refreshArchiveRelsCache.RLock()
-		model, ok := refreshArchiveRelsCache.Artists[artist.Name]
-		refreshArchiveRelsCache.RUnlock()
+	if len(archive.Artists) > 0 {
+		var artists []*models.Artist
+		for _, artist := range archive.Artists {
+			refreshArchiveRelsCache.RLock()
+			model, ok := refreshArchiveRelsCache.Artists[artist.Name]
+			refreshArchiveRelsCache.RUnlock()
 
-		if ok {
-			artists = append(artists, model)
-			continue
-		}
+			if ok {
+				artists = append(artists, model)
+				continue
+			}
 
-		refreshArchiveRelsCache.Lock()
-		artist, err = CreateArtist(artist.Name)
-		if err != nil {
-			refreshArchiveRelsCache.Unlock()
-			return err
-		}
-
-		model = &models.Artist{
-			ID:   artist.ID,
-			Slug: artist.Slug,
-			Name: artist.Name,
-		}
-		refreshArchiveRelsCache.Artists[artist.Name] = model
-		refreshArchiveRelsCache.Unlock()
-
-		artists = append(artists, model)
-	}
-	if err := arc.SetArtists(e, false, artists...); err != nil {
-		log.Println(err)
-		return errs.ErrUnknown
-	}
-
-	if archive.Circle != nil {
-		refreshArchiveRelsCache.RLock()
-		model, ok := refreshArchiveRelsCache.Circles[archive.Circle.Name]
-		refreshArchiveRelsCache.RUnlock()
-
-		if !ok {
 			refreshArchiveRelsCache.Lock()
-			circle, err := CreateCircle(archive.Circle.Name)
+			artist, err = CreateArtist(artist.Name)
+			if err != nil {
+				refreshArchiveRelsCache.Unlock()
+				return err
+			}
+
+			model = &models.Artist{
+				ID:   artist.ID,
+				Slug: artist.Slug,
+				Name: artist.Name,
+			}
+			refreshArchiveRelsCache.Artists[artist.Name] = model
+			refreshArchiveRelsCache.Unlock()
+
+			artists = append(artists, model)
+		}
+		if err := arc.SetArtists(e, false, artists...); err != nil {
+			log.Println(err)
+			return errs.ErrUnknown
+		}
+	}
+
+	if len(archive.Circles) > 0 {
+		var circles []*models.Circle
+		for _, circle := range archive.Circles {
+			refreshArchiveRelsCache.RLock()
+			model, ok := refreshArchiveRelsCache.Circles[circle.Name]
+			refreshArchiveRelsCache.RUnlock()
+
+			if ok {
+				circles = append(circles, model)
+				continue
+			}
+
+			refreshArchiveRelsCache.Lock()
+			circle, err := CreateCircle(circle.Name)
 			if err != nil {
 				refreshArchiveRelsCache.Unlock()
 				return err
@@ -530,27 +545,38 @@ func refreshArchiveRels(e boil.Executor, arc *models.Archive, archive *modext.Ar
 
 			model = &models.Circle{
 				ID:   circle.ID,
-				Slug: circle.Name,
+				Slug: circle.Slug,
 				Name: circle.Name,
 			}
 			refreshArchiveRelsCache.Circles[circle.Name] = model
 			refreshArchiveRelsCache.Unlock()
-		}
 
-		if err := arc.SetCircle(e, false, model); err != nil {
-			log.Println(err)
+			circles = append(circles, model)
+		}
+		if err := arc.SetCircles(e, false, circles...); err != nil {
+			var str []string
+			for _, circle := range circles {
+				str = append(str, circle.Name)
+			}
+			log.Println(err, str)
 			return errs.ErrUnknown
 		}
 	}
 
-	if archive.Magazine != nil {
-		refreshArchiveRelsCache.RLock()
-		model, ok := refreshArchiveRelsCache.Magazines[archive.Magazine.Name]
-		refreshArchiveRelsCache.RUnlock()
+	if len(archive.Magazines) > 0 {
+		var magazines []*models.Magazine
+		for _, magazine := range archive.Magazines {
+			refreshArchiveRelsCache.RLock()
+			model, ok := refreshArchiveRelsCache.Magazines[magazine.Name]
+			refreshArchiveRelsCache.RUnlock()
 
-		if !ok {
+			if ok {
+				magazines = append(magazines, model)
+				continue
+			}
+
 			refreshArchiveRelsCache.Lock()
-			magazine, err := CreateMagazine(archive.Magazine.Name)
+			magazine, err := CreateMagazine(magazine.Name)
 			if err != nil {
 				refreshArchiveRelsCache.Unlock()
 				return err
@@ -563,22 +589,33 @@ func refreshArchiveRels(e boil.Executor, arc *models.Archive, archive *modext.Ar
 			}
 			refreshArchiveRelsCache.Magazines[magazine.Name] = model
 			refreshArchiveRelsCache.Unlock()
-		}
 
-		if err := arc.SetMagazine(e, false, model); err != nil {
-			log.Println(err)
+			magazines = append(magazines, model)
+		}
+		if err := arc.SetMagazines(e, false, magazines...); err != nil {
+			var str []string
+			for _, magazine := range magazines {
+				str = append(str, magazine.Name)
+			}
+			log.Println(err, str)
 			return errs.ErrUnknown
 		}
 	}
 
-	if archive.Parody != nil {
-		refreshArchiveRelsCache.RLock()
-		model, ok := refreshArchiveRelsCache.Parodies[archive.Parody.Name]
-		refreshArchiveRelsCache.RUnlock()
+	if len(archive.Parodies) > 0 {
+		var parodies []*models.Parody
+		for _, parody := range archive.Parodies {
+			refreshArchiveRelsCache.RLock()
+			model, ok := refreshArchiveRelsCache.Parodies[parody.Name]
+			refreshArchiveRelsCache.RUnlock()
 
-		if !ok {
+			if ok {
+				parodies = append(parodies, model)
+				continue
+			}
+
 			refreshArchiveRelsCache.Lock()
-			parody, err := CreateParody(archive.Parody.Name)
+			parody, err := CreateParody(parody.Name)
 			if err != nil {
 				refreshArchiveRelsCache.Unlock()
 				return err
@@ -591,46 +628,58 @@ func refreshArchiveRels(e boil.Executor, arc *models.Archive, archive *modext.Ar
 			}
 			refreshArchiveRelsCache.Parodies[parody.Name] = model
 			refreshArchiveRelsCache.Unlock()
-		}
 
-		if err := arc.SetParody(e, false, model); err != nil {
-			log.Println(err)
+			parodies = append(parodies, model)
+		}
+		if err := arc.SetParodies(e, false, parodies...); err != nil {
+			var str []string
+			for _, parody := range parodies {
+				str = append(str, parody.Name)
+			}
+			log.Println(err, str)
 			return errs.ErrUnknown
 		}
 	}
 
-	var tags []*models.Tag
-	for _, tag := range archive.Tags {
-		refreshArchiveRelsCache.RLock()
-		model, ok := refreshArchiveRelsCache.Tags[tag.Name]
-		refreshArchiveRelsCache.RUnlock()
+	if len(archive.Tags) > 0 {
+		var tags []*models.Tag
+		for _, tag := range archive.Tags {
+			refreshArchiveRelsCache.RLock()
+			model, ok := refreshArchiveRelsCache.Tags[tag.Name]
+			refreshArchiveRelsCache.RUnlock()
 
-		if ok {
-			tags = append(tags, model)
-			continue
-		}
+			if ok {
+				tags = append(tags, model)
+				continue
+			}
 
-		refreshArchiveRelsCache.Lock()
-		tag, err := CreateTag(tag.Name)
-		if err != nil {
+			refreshArchiveRelsCache.Lock()
+			tag, err := CreateTag(tag.Name)
+			if err != nil {
+				refreshArchiveRelsCache.Unlock()
+				return err
+			}
+
+			model = &models.Tag{
+				ID:   tag.ID,
+				Slug: tag.Slug,
+				Name: tag.Name,
+			}
+			refreshArchiveRelsCache.Tags[tag.Name] = model
 			refreshArchiveRelsCache.Unlock()
-			return err
-		}
 
-		model = &models.Tag{
-			ID:   tag.ID,
-			Slug: tag.Slug,
-			Name: tag.Name,
+			tags = append(tags, model)
 		}
-		refreshArchiveRelsCache.Tags[tag.Name] = model
-		refreshArchiveRelsCache.Unlock()
+		if err := arc.SetTags(e, false, tags...); err != nil {
+			var str []string
+			for _, tag := range tags {
+				str = append(str, tag.Name)
+			}
+			log.Println(err, str)
+			return errs.ErrUnknown
+		}
+	}
 
-		tags = append(tags, model)
-	}
-	if err := arc.SetTags(e, false, tags...); err != nil {
-		log.Println(err)
-		return errs.ErrUnknown
-	}
 	return nil
 }
 
@@ -642,24 +691,40 @@ func CreateArchive(archive *modext.Archive) (*modext.Archive, error) {
 	}
 
 	selectQueries := []QueryMod{
-		Where("archive.title = ?", archive.Title)}
-	if archive.Artists != nil {
+		Where("archive.slug = ?", archive.Slug),
+		Load(ArchiveRels.Artists),
+		Load(ArchiveRels.Circles),
+		Load(ArchiveRels.Magazines),
+		Load(ArchiveRels.Parodies),
+		Load(ArchiveRels.Tags),
+	}
+	if len(archive.Artists) > 0 {
 		var artists []string
 		for _, artist := range archive.Artists {
-			artists = append(artists, artist.Name)
+			artists = append(artists, slugify(artist.Name))
 		}
-		selectQueries = append(selectQueries,
-			InnerJoin("archive_artists artists ON archive.id = artists.archive_id"),
-			InnerJoin("artist ON artist.id = artists.artist_id"),
-			Where("artist.name IN (?)", strings.Join(artists, ",")))
-	} else if archive.Magazine != nil {
-		selectQueries = append(selectQueries,
-			InnerJoin("magazine ON magazine.id = archive.magazine_id"),
-			Where("magazine.name = ?", archive.Magazine.Name))
-	} else if archive.Circle != nil {
-		selectQueries = append(selectQueries,
-			InnerJoin("circle ON circle.id = archive.circle_id"),
-			Where("circle.name = ?", archive.Circle.Name))
+
+		mods, query, args := joinRelQuery(true, models.TableNames.Artist, artists)
+		selectQueries = append(selectQueries, mods...)
+		selectQueries = append(selectQueries, Where(query, args...))
+	} else if len(archive.Magazines) > 0 {
+		var magazines []string
+		for _, magazine := range archive.Magazines {
+			magazines = append(magazines, slugify(magazine.Name))
+		}
+
+		mods, query, args := joinRelQuery(true, models.TableNames.Magazine, magazines)
+		selectQueries = append(selectQueries, mods...)
+		selectQueries = append(selectQueries, Where(query, args...))
+	} else if len(archive.Circles) > 0 {
+		var circles []string
+		for _, circle := range archive.Circles {
+			circles = append(circles, slugify(circle.Name))
+		}
+
+		mods, query, args := joinRelQuery(true, models.TableNames.Circle, circles)
+		selectQueries = append(selectQueries, mods...)
+		selectQueries = append(selectQueries, Where(query, args...))
 	} else {
 		selectQueries = append(selectQueries,
 			Where("archive.path = ?", archive.Path))
@@ -681,7 +746,7 @@ func CreateArchive(archive *modext.Archive) (*modext.Archive, error) {
 	if arc == nil {
 		arc = &models.Archive{
 			Title: archive.Title,
-			Slug:  slug.Make(archive.Title),
+			Slug:  archive.Slug,
 		}
 		if archive.CreatedAt > 0 {
 			arc.CreatedAt = time.Unix(archive.CreatedAt, 0)
@@ -718,16 +783,25 @@ func CreateArchive(archive *modext.Archive) (*modext.Archive, error) {
 	return modext.NewArchive(arc), nil
 }
 
+func CreateArchiveSymlink(archive *modext.Archive) error {
+	if archive == nil {
+		return nil
+	}
+
+	symlink := filepath.Join(Config.Directories.Symlinks, strconv.Itoa(int(archive.ID)))
+	return os.Symlink(archive.Path, symlink)
+}
+
 func validateRels(rels []string) (result []string) {
 	for _, v := range rels {
 		if strings.EqualFold(v, ArchiveRels.Artists) {
 			result = append(result, ArchiveRels.Artists)
-		} else if strings.EqualFold(v, ArchiveRels.Circle) {
-			result = append(result, ArchiveRels.Circle)
-		} else if strings.EqualFold(v, ArchiveRels.Magazine) {
-			result = append(result, ArchiveRels.Magazine)
-		} else if strings.EqualFold(v, ArchiveRels.Parody) {
-			result = append(result, ArchiveRels.Parody)
+		} else if strings.EqualFold(v, ArchiveRels.Circles) {
+			result = append(result, ArchiveRels.Circles)
+		} else if strings.EqualFold(v, ArchiveRels.Magazines) {
+			result = append(result, ArchiveRels.Magazines)
+		} else if strings.EqualFold(v, ArchiveRels.Parodies) {
+			result = append(result, ArchiveRels.Parodies)
 		} else if strings.EqualFold(v, ArchiveRels.Tags) {
 			result = append(result, ArchiveRels.Tags)
 		}
@@ -786,14 +860,14 @@ func GetArchive(id int64, opts GetArchiveOptions) (result *GetArchiveResult) {
 }
 
 type GetArchivesOptions struct {
-	Path     string `json:"0,omitempty"`
-	Title    string `json:"1,omitempty"`
-	Circle   string `json:"2,omitempty"`
-	Magazine string `json:"3,omitempty"`
-	Parody   string `json:"4,omitempty"`
+	Path  string `json:"0,omitempty"`
+	Title string `json:"1,omitempty"`
 
-	Artists []string `json:"5,omitempty"`
-	Tags    []string `json:"6,omitempty"`
+	Circles   []string `json:"2,omitempty"`
+	Magazines []string `json:"3,omitempty"`
+	Parodies  []string `json:"4,omitempty"`
+	Artists   []string `json:"5,omitempty"`
+	Tags      []string `json:"6,omitempty"`
 
 	Limit    int      `json:"7,omitempty"`
 	Offset   int      `json:"8,omitempty"`
@@ -804,18 +878,30 @@ type GetArchivesOptions struct {
 
 func (o *GetArchivesOptions) validate() {
 	o.Path = strings.ToLower(o.Path)
-	o.Title = slug.Make(o.Title)
-	o.Circle = slug.Make(o.Circle)
-	o.Magazine = slug.Make(o.Magazine)
-	o.Parody = slug.Make(o.Parody)
+	o.Title = slugify(o.Title)
+
+	for i, circle := range o.Circles {
+		o.Circles[i] = slugify(circle)
+	}
+	sort.Strings(o.Circles)
+
+	for i, magazine := range o.Magazines {
+		o.Magazines[i] = slugify(magazine)
+	}
+	sort.Strings(o.Magazines)
+
+	for i, parody := range o.Parodies {
+		o.Parodies[i] = slugify(parody)
+	}
+	sort.Strings(o.Parodies)
 
 	for i, artist := range o.Artists {
-		o.Artists[i] = slug.Make(artist)
+		o.Artists[i] = slugify(artist)
 	}
 	sort.Strings(o.Artists)
 
 	for i, tag := range o.Tags {
-		o.Tags[i] = slug.Make(tag)
+		o.Tags[i] = slugify(tag)
 	}
 	sort.Strings(o.Tags)
 
@@ -850,77 +936,89 @@ func (o *GetArchivesOptions) validate() {
 	}
 }
 
+func joinRelQuery(isOr bool, n string, values []string) ([]QueryMod, string, []interface{}) {
+	var queries []QueryMod
+	var query string
+	var args []interface{}
+
+	queries = append(queries,
+		InnerJoin(fmt.Sprintf("archive_%s j ON j.archive_id = archive.id", pluralize(n))),
+		InnerJoin(fmt.Sprintf("%s ON %[1]s.id = j.%[1]s_id", n)))
+
+	var q []string
+	for _, v := range values {
+		if isOr {
+			q = append(q, n+".slug ILIKE '%' || ? || '%'")
+		} else {
+			q = append(q, n+".slug = ?")
+		}
+		args = append(args, v)
+	}
+
+	if len(q) > 1 {
+		query = fmt.Sprintf("(%s)", strings.Join(q, " OR "))
+	} else {
+		query = q[0]
+	}
+	return queries, query, args
+}
+
 func (o *GetArchivesOptions) toQueries(isOr bool) (selectQueries, countQueries []QueryMod) {
-	countQueries = append(countQueries, Select("1"))
+	countQueries = []QueryMod{Select("1")}
 
 	var queries []string
-	var args []interface{}
+	var arguments []interface{}
 
 	if len(o.Path) > 0 {
 		queries = append(queries, "archive.path ILIKE '%' || ? || '%'")
-		args = append(args, o.Path)
+		arguments = append(arguments, o.Path)
 	}
 
 	if len(o.Title) > 0 {
 		queries = append(queries, "archive.slug ILIKE '%' || ? || '%'")
-		args = append(args, o.Title)
-	}
-
-	if len(o.Circle) > 0 {
-		selectQueries = append(selectQueries,
-			InnerJoin("circle ON circle.id = archive.circle_id"))
-		if isOr {
-			queries = append(queries, "circle.slug ILIKE '%' || ? || '%'")
-		} else {
-			queries = append(queries, "circle.slug = ?")
-		}
-		args = append(args, o.Circle)
-	}
-
-	if len(o.Magazine) > 0 {
-		selectQueries = append(selectQueries,
-			InnerJoin("magazine ON archive.magazine_id = magazine.id"))
-		queries = append(queries, "magazine.slug = ?")
-		args = append(args, o.Magazine)
-	}
-
-	if len(o.Parody) > 0 {
-		selectQueries = append(selectQueries,
-			InnerJoin("parody ON parody.id = archive.parody_id"))
-		queries = append(queries, "parody.slug = ?")
-		args = append(args, o.Parody)
+		arguments = append(arguments, o.Title)
 	}
 
 	if len(o.Artists) > 0 {
-		selectQueries = append(selectQueries,
-			InnerJoin("archive_artists ar ON ar.archive_id = archive.id"),
-			InnerJoin("artist ON artist.id = ar.artist_id"))
-		var q []string
-		for _, tag := range o.Artists {
-			if isOr {
-				q = append(q, "artist.slug ILIKE '%' || ? || '%'")
-			} else {
-				q = append(q, "artist.slug = ?")
-			}
-			args = append(args, tag)
-		}
-		queries = append(queries, fmt.Sprintf("(%s)", strings.Join(q, " OR ")))
+		mods, query, args := joinRelQuery(isOr, models.TableNames.Artist, o.Artists)
+		selectQueries = append(selectQueries, mods...)
+		queries = append(queries, query)
+		arguments = append(arguments, args...)
+	}
+
+	if len(o.Circles) > 0 {
+		mods, query, args := joinRelQuery(isOr, models.TableNames.Circle, o.Circles)
+		selectQueries = append(selectQueries, mods...)
+		queries = append(queries, query)
+		arguments = append(arguments, args...)
+	}
+
+	if len(o.Magazines) > 0 {
+		mods, query, args := joinRelQuery(isOr, models.TableNames.Magazine, o.Magazines)
+		selectQueries = append(selectQueries, mods...)
+		queries = append(queries, query)
+		arguments = append(arguments, args...)
+	}
+
+	if len(o.Parodies) > 0 {
+		mods, query, args := joinRelQuery(isOr, models.TableNames.Parody, o.Parodies)
+		selectQueries = append(selectQueries, mods...)
+		queries = append(queries, query)
+		arguments = append(arguments, args...)
 	}
 
 	if len(o.Tags) > 0 {
-		selectQueries = append(selectQueries,
-			InnerJoin("archive_tags at ON at.archive_id = archive.id"),
-			InnerJoin("tag ON tag.id = at.tag_id"))
-
-		var q []string
-		for _, tag := range o.Tags {
-			q = append(q, "tag.slug = ?")
-			args = append(args, tag)
-		}
-		queries = append(queries, fmt.Sprintf("(%s)", strings.Join(q, " OR ")))
+		mods, query, args := joinRelQuery(false, models.TableNames.Tag, o.Tags)
+		selectQueries = append(selectQueries, mods...)
+		queries = append(queries, query)
+		arguments = append(arguments, args...)
 	}
 
-	if len(o.Artists) > 0 || len(o.Tags) > 0 {
+	if len(o.Artists) > 0 ||
+		len(o.Circles) > 0 ||
+		len(o.Magazines) > 0 ||
+		len(o.Parodies) > 0 ||
+		len(o.Tags) > 0 {
 		selectQueries = append(selectQueries, GroupBy("archive.id"))
 	}
 
@@ -930,10 +1028,11 @@ func (o *GetArchivesOptions) toQueries(isOr bool) (selectQueries, countQueries [
 			op = " OR "
 		}
 		selectQueries = append(selectQueries,
-			Where(strings.Join(queries, op), args...))
+			Where(strings.Join(queries, op), arguments...))
 	}
 
-	selectQueries = append(selectQueries, Where("archive.published_at IS NOT NULL"))
+	selectQueries = append(selectQueries,
+		Where("archive.published_at IS NOT NULL"))
 	countQueries = append(countQueries, selectQueries...)
 
 	selectQueries = append(selectQueries,
@@ -1055,6 +1154,11 @@ func GetArchiveStats() (size, pages int64, err error) {
 	return
 }
 
+func GetArchiveSymlink(id int) (string, error) {
+	symlink := filepath.Join(Config.Directories.Symlinks, strconv.Itoa(id))
+	return os.Readlink(symlink)
+}
+
 func PublishArchive(id int64) (*modext.Archive, error) {
 	archive, err := models.FindArchiveG(id)
 	if err != nil {
@@ -1079,6 +1183,20 @@ func PublishArchives() error {
 	// TODO: Purge cache
 	return models.Archives(Where("published_at IS NULL")).
 		UpdateAllG(models.M{"published_at": null.TimeFrom(time.Now().UTC())})
+}
+
+func PurgeArchiveThumbnails() {
+	if err := os.RemoveAll(Config.Directories.Thumbnails); err != nil {
+		log.Fatalln(err)
+	} else if err := os.MkdirAll(Config.Directories.Thumbnails, 0755); err != nil {
+		log.Fatalln(err)
+	}
+}
+
+func PurgeArchiveSymlinks() {
+	if err := os.RemoveAll(Config.Directories.Symlinks); err != nil {
+		log.Fatalln(err)
+	}
 }
 
 func UnpublishArchive(id int64) (*modext.Archive, error) {

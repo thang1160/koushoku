@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -206,6 +207,10 @@ func ServePage(c *server.Context) {
 		c.Status(http.StatusNotFound)
 		return
 	}
+
+	sort.SliceStable(files, func(i, j int) bool {
+		return services.GetPageNum(filepath.Base(files[i].Name)) < services.GetPageNum(filepath.Base(files[j].Name))
+	})
 
 	file := files[index]
 	stat := file.FileInfo()

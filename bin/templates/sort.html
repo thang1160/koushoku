@@ -1,0 +1,34 @@
+{{- define "sort" }}
+  <div class="sort">
+    <a
+      {{- if eq .queries.Sort "id" }}
+        class="active"
+      {{- end }}
+      href="{{ createQuery .query "sort" "id" }}"
+      >ID</a
+    >
+    <a
+      {{- if eq .queries.Sort "title" }}
+        class="active"
+      {{- end }}
+      href="{{ createQuery .query "sort" "title" }}"
+      >Title</a
+    >
+    <a
+      {{- if eq .queries.Sort "created_at" }}
+        class="active"
+      {{ end }}
+      href="{{ createQuery .query "sort" "created_at" }}"
+      >Created</a
+    >
+    <a
+      {{- if eq .queries.Sort "published_at" }}
+        class="active"
+      {{- end }}
+      href="{{ createQuery .query "sort" "published_at" }}"
+      >Published</a
+    >
+    <a {{ if eq .queries.Order "asc" }}class="active"{{ end }} href="{{ createQuery .query "order" "asc" }}">ASC</a>
+    <a {{ if eq .queries.Order "desc" }}class="active"{{ end }}href="{{ createQuery .query "order" "desc" }}">DESC</a>
+  </div>
+{{- end }}

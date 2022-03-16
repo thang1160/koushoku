@@ -8,11 +8,16 @@
         <section class="feed" id="archives">
           <header>
             <h2>Search Results ({{ .total }})</h2>
+            {{- if .archives }}
+              {{- template "sort". }}
+              {{- template "pagination" . }}
+            {{- end }}
           </header>
           {{- if .archives }}
-            {{- template "pagination" . }}
             {{- template "feed" . }}
-            {{- template "pagination" . }}
+            <footer>
+              {{- template "pagination" . }}
+            </footer>
           {{- else }}
             <div class="empty">
               {{- if .hasQueries }}

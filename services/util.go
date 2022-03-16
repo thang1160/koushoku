@@ -3,7 +3,6 @@ package services
 import (
 	"bytes"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"math"
 	"net/url"
@@ -11,16 +10,58 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
 
 	"github.com/gosimple/slug"
+	"github.com/pkg/errors"
+	"golang.org/x/text/language"
+	"golang.org/x/text/message"
 )
 
-type QueryMapCache struct {
-	Map map[string]bool
+type IndexMap struct {
+	Cache map[string]bool
 	sync.RWMutex
+}
+
+func (m *IndexMap) Add(k string, v bool) {
+	m.Lock()
+	m.Cache[k] = v
+	m.Unlock()
+}
+
+func (m *IndexMap) AddIfNotExist(k string, v bool) {
+	if !m.Has(k) {
+		m.Add(k, v)
+	}
+}
+
+func (m *IndexMap) Clear() {
+	m.Lock()
+	m.Cache = make(map[string]bool)
+	m.Unlock()
+}
+
+func (m *IndexMap) Get(key string) (bool, bool) {
+	m.RLock()
+	defer m.RUnlock()
+	v, ok := m.Cache[key]
+	return v, ok
+}
+
+func (m *IndexMap) Has(key string) bool {
+	m.RLock()
+	defer m.RUnlock()
+	_, ok := m.Cache[key]
+	return ok
+}
+
+func (m *IndexMap) Remove(key string) {
+	m.Lock()
+	delete(m.Cache, key)
+	m.Unlock()
 }
 
 type Pagination struct {
@@ -83,16 +124,27 @@ func FormatBytes(b int64) string {
 	return fmt.Sprintf("%.1f %cB", float64(b)/float64(div), "kMGTPE"[exp])
 }
 
+func FormatNumber(n int64) string {
+	p := message.NewPrinter(language.English)
+	return p.Sprintf("%d", n)
+}
+
 func FileName(path string) string {
 	return strings.TrimRight(filepath.Base(path), filepath.Ext(path))
 }
 
-var rgx = regexp.MustCompile("[0-9]+")
+var pageNumRgx = regexp.MustCompile("[0-9]+")
 
 func GetPageNum(fileName string) int {
 	fileName = strings.TrimLeft(fileName, "0")
-	n, _ := strconv.Atoi(rgx.FindString(fileName))
+	n, _ := strconv.Atoi(pageNumRgx.FindString(fileName))
 	return n
+}
+
+var imgFormatRgx = regexp.MustCompile(`(?i)(gif|jpe?g|tiff?|png|webp|bmp)$`)
+
+func IsImage(path string) bool {
+	return imgFormatRgx.MatchString(path)
 }
 
 func JoinURL(base string, paths ...string) string {
@@ -103,9 +155,29 @@ func JoinURL(base string, paths ...string) string {
 	return u.String()
 }
 
-func makeCacheKey(v interface{}) string {
+func JoinOR(strs ...string) string {
+	return fmt.Sprintf("(%s)", strings.Join(strs, " OR "))
+}
+
+func makeCacheKey(v any) string {
 	buf, _ := json.Marshal(v)
 	return string(buf)
+}
+
+// Min returns the smaller of x or y.
+func Min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
+}
+
+// Max returns the larger of x or y.
+func Max(a, b int) int {
+	if a > b {
+		return a
+	}
+	return b
 }
 
 var slugCache struct {
@@ -114,11 +186,23 @@ var slugCache struct {
 	sync.Once
 }
 
-func slugify(s string) string {
+func init() {
+	slug.CustomSub = make(map[string]string)
+	slug.CustomSub["❤"] = ""
+	slug.CustomSub["☆"] = "-"
+	slug.CustomSub["&"] = ""
+	slug.CustomSub["♀"] = "bjb"
+	slug.CustomSub["_"] = "-"
+}
+
+func Slugify(s string) string {
 	slugCache.Once.Do(func() {
 		slugCache.Map = make(map[string]string)
 	})
 
+	if len(s) == 0 {
+		return ""
+	}
 	s = strings.ToLower(s)
 
 	slugCache.RLock()
@@ -132,20 +216,18 @@ func slugify(s string) string {
 		slugCache.Map[s] = v
 		slugCache.Unlock()
 	}
-
 	return v
 }
 
-func stringsContains(slice []string, search string) bool {
-	for _, str := range slice {
-		if str == search {
-			return true
-		}
+func SlugifyStrings(strs []string) []string {
+	for i, s := range strs {
+		strs[i] = Slugify(s)
 	}
-	return false
+	sort.Strings(strs)
+	return strs
 }
 
-func pluralize(str string) string {
+func Pluralize(str string) string {
 	if strings.HasSuffix(str, "ss") {
 		return str + "es"
 	} else if strings.HasSuffix(str, "y") {
@@ -157,7 +239,6 @@ func pluralize(str string) string {
 type ResizeOptions struct {
 	Width  int
 	Height int
-	Crop   bool
 }
 
 var resizer struct {
@@ -172,13 +253,14 @@ func init() {
 	resizer.Queue = make(chan bool, 10)
 }
 
-func ResizeImage(filepath, outputPath string, o ResizeOptions) error {
+func ResizeImage(filePath, outputPath string, opts ResizeOptions) error {
 	resizer.RLock()
 	mu, ok := resizer.Map[outputPath]
 	resizer.RUnlock()
 
 	if !ok {
 		mu = &sync.Mutex{}
+
 		resizer.Lock()
 		resizer.Map[outputPath] = mu
 		resizer.Unlock()
@@ -202,21 +284,29 @@ func ResizeImage(filepath, outputPath string, o ResizeOptions) error {
 		<-resizer.Queue
 	}()
 
-	w := strconv.Itoa(o.Width)
-	h := strconv.Itoa(o.Height)
-	crop := strconv.FormatBool(o.Crop)
-
-	buf, err := runCommand("./resizer", filepath, w, h, crop)
-	if err != nil {
-		return err
+	var err error
+	for i := 0; i < 3; i++ {
+		_, err = RunCommand("mogrify",
+			"-thumbnail", fmt.Sprintf("%dx%d^", opts.Width, opts.Height),
+			"-gravity", "Center",
+			"-extent", fmt.Sprintf("%dx%d", opts.Width, opts.Height),
+			"-quality", "85",
+			"-write", outputPath,
+			filePath)
+		if err != nil {
+			continue
+		}
+		break
 	}
 
-	return os.WriteFile(outputPath, buf.Bytes(), 0755)
+	if err == nil {
+		_, err = os.Stat(outputPath)
+	}
+	return err
 }
 
-func runCommand(path string, args ...string) (*bytes.Buffer, error) {
+func RunCommand(path string, args ...string) (*bytes.Buffer, error) {
 	cmd := exec.Command(path, args...)
-	cmd.Env = os.Environ()
 
 	var buf bytes.Buffer
 	var stderr bytes.Buffer
@@ -231,6 +321,5 @@ func runCommand(path string, args ...string) (*bytes.Buffer, error) {
 	if err := stderr.String(); len(err) > 0 {
 		return nil, errors.New(err)
 	}
-
 	return &buf, nil
 }

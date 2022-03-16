@@ -14,14 +14,13 @@ import (
 	. "koushoku/config"
 
 	"github.com/gin-gonic/gin"
-	"github.com/juju/ratelimit"
 )
 
 type Context struct {
 	*gin.Context
 
 	sync.RWMutex
-	MapData map[string]interface{}
+	MapData map[string]any
 }
 
 func (c *Context) GetURL() string {
@@ -49,6 +48,7 @@ func (c *Context) preHTML(code *int) {
 	c.SetData("title", Config.Meta.Title)
 	c.SetData("description", Config.Meta.Description)
 	c.SetData("baseURL", Config.Meta.BaseURL)
+	c.SetData("dataBaseURL", Config.Meta.DataBaseURL)
 	c.SetData("language", Config.Meta.Language)
 
 	c.SetData("url", c.GetURL())
@@ -57,10 +57,10 @@ func (c *Context) preHTML(code *int) {
 
 func (c *Context) HTML(code int, name string) {
 	c.preHTML(&code)
-	renderTemplate(c, false, &RenderOptions{
-		Status: code,
-		Name:   name,
+	renderTemplate(c, &RenderOptions{
 		Data:   c.MapData,
+		Name:   name,
+		Status: code,
 	})
 }
 
@@ -69,10 +69,11 @@ func (c *Context) Cache(code int, name string) {
 		c.HTML(code, name)
 	} else {
 		c.preHTML(&code)
-		renderTemplate(c, true, &RenderOptions{
-			Status: code,
-			Name:   name,
+		renderTemplate(c, &RenderOptions{
+			Cache:  true,
 			Data:   c.MapData,
+			Name:   name,
+			Status: code,
 		})
 	}
 }
@@ -103,7 +104,7 @@ func (c *Context) ErrorJSON(code int, message string, err error) {
 	})
 }
 
-func (c *Context) GetData(key string) (interface{}, bool) {
+func (c *Context) GetData(key string) (any, bool) {
 	c.RLock()
 	defer c.RUnlock()
 
@@ -111,12 +112,12 @@ func (c *Context) GetData(key string) (interface{}, bool) {
 	return v, exists
 }
 
-func (c *Context) SetData(key string, value interface{}) {
+func (c *Context) SetData(key string, value any) {
 	c.Lock()
 	defer c.Unlock()
 
 	if c.MapData == nil {
-		c.MapData = make(map[string]interface{})
+		c.MapData = make(map[string]any)
 	}
 	c.MapData[key] = value
 }
@@ -164,12 +165,14 @@ const (
 
 func (c *Context) serveContent(stream bool, stat os.FileInfo, content io.ReadSeeker) {
 	if stream {
+		c.Writer.Header().Set("Content-Type", "application/octet-stream")
 		c.Writer.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s\"", stat.Name()))
 	}
 
-	bucket := ratelimit.NewBucketWithRate(rate, capacity)
-	limiter := readLimiter{content, ratelimit.Reader(content, bucket)}
-	http.ServeContent(c.Writer, c.Request, stat.Name(), stat.ModTime(), limiter)
+	//bucket := ratelimit.NewBucketWithRate(rate, capacity)
+	//limiter := readLimiter{content, ratelimit.Reader(content, bucket)}
+	//http.ServeContent(c.Writer, c.Request, stat.Name(), stat.ModTime(), limiter)
+	http.ServeContent(c.Writer, c.Request, stat.Name(), stat.ModTime(), content)
 }
 
 func (c *Context) serveFile(stream bool, filepath string) {

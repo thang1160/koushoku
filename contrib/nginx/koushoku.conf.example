@@ -1,0 +1,24 @@
+upstream koushoku {
+  server 127.0.0.1:42073;
+  server 127.0.0.1:42074;
+}
+
+server {
+  listen 80;
+  listen [::]:80;
+
+  server_name domain.com www.domain.com;
+  return 301 https://$host$request_uri;
+}
+
+server {
+  listen 443 ssl http2;
+  listen [::]:443 ssl http2;
+
+  server_name domain.com www.domain.com;
+
+  location / {
+    proxy_pass http://koushoku;
+  }
+}
+

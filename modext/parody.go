@@ -9,13 +9,9 @@ type Parody struct {
 	Count int64  `json:"count" boil:"archive_count"`
 }
 
-func NewParody(parody *models.Parody) *Parody {
-	if parody == nil {
+func NewParody(model *models.Parody) *Parody {
+	if model == nil {
 		return nil
 	}
-	return &Parody{
-		ID:   parody.ID,
-		Slug: parody.Slug,
-		Name: parody.Name,
-	}
+	return &Parody{ID: model.ID, Slug: model.Slug, Name: model.Name}
 }

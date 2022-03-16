@@ -15,6 +15,8 @@ var TableNames = struct {
 	Magazine         string
 	Parody           string
 	Tag              string
+	UserFavorites    string
+	Users            string
 }{
 	Archive:          "archive",
 	ArchiveArtists:   "archive_artists",
@@ -27,4 +29,6 @@ var TableNames = struct {
 	Magazine:         "magazine",
 	Parody:           "parody",
 	Tag:              "tag",
+	UserFavorites:    "user_favorites",
+	Users:            "users",
 }

@@ -10,8 +10,6 @@ import (
 
 	. "koushoku/config"
 	"koushoku/services"
-
-	"github.com/nleeper/goment"
 )
 
 var helper = template.FuncMap{
@@ -19,9 +17,32 @@ var helper = template.FuncMap{
 		return Config.Meta.BaseURL
 	},
 
-	"formatBytes": func(bytes interface{}) string {
+	"dataBaseURL": func() string {
+		return Config.Meta.DataBaseURL
+	},
+
+	"language": func() string {
+		return Config.Meta.Language
+	},
+
+	"formatBytes": func(v any) string {
+		var b int64
+		switch v := v.(type) {
+		case int:
+			b = int64(v)
+		case int64:
+			b = v
+		case uint:
+			b = int64(v)
+		case uint64:
+			b = int64(v)
+		}
+		return services.FormatBytes(b)
+	},
+
+	"formatNumber": func(v any) string {
 		var n int64
-		switch v := bytes.(type) {
+		switch v := v.(type) {
 		case int:
 			n = int64(v)
 		case int64:
@@ -31,24 +52,25 @@ var helper = template.FuncMap{
 		case uint64:
 			n = int64(v)
 		}
-		return services.FormatBytes(n)
+		return services.FormatNumber(n)
 	},
 
 	"joinURL": func(base string, s ...string) string {
 		return services.JoinURL(base, s...)
 	},
 
-	"language": func() string {
-		return Config.Meta.Language
-	},
-
-	"makeSlice": func(n int16) []int {
-		return make([]int, n)
-	},
-
-	"setQuery": func(query url.Values, key string, value interface{}) string {
+	"setQuery": func(query url.Values, key string, value any) string {
 		query.Set(key, fmt.Sprintf("%v", value))
 		return fmt.Sprintf("?%s", query.Encode())
+	},
+
+	"createQuery": func(query url.Values, key string, value any) string {
+		clone := make(url.Values)
+		for k, v := range query {
+			clone[k] = v
+		}
+		clone.Set(key, fmt.Sprintf("%v", value))
+		return fmt.Sprintf("?%s", clone.Encode())
 	},
 
 	"includes": func(slice []string, s string) bool {
@@ -58,14 +80,6 @@ var helper = template.FuncMap{
 			}
 		}
 		return false
-	},
-
-	"moment": func(n int64) string {
-		moment, err := goment.New(time.Unix(n, 0).UTC())
-		if err != nil {
-			return ""
-		}
-		return moment.FromNow()
 	},
 
 	"add": func(a, b int) int {
@@ -117,7 +131,7 @@ var helper = template.FuncMap{
 	"replace":    strings.Replace,
 
 	"formatTime": func(t time.Time, format string) string {
-		return t.Format(format)
+		return t.UTC().Format(format)
 	},
 
 	"formatUnix": func(n int64, format string) string {

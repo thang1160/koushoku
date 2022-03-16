@@ -13,11 +13,7 @@ import (
 	"github.com/volatiletech/sqlboiler/v4/boil"
 )
 
-type Database struct {
-	*sql.DB
-}
-
-var Conn *Database
+var Conn *sql.DB
 
 //go:embed schema.sql
 var schema []byte
@@ -35,10 +31,11 @@ func Init() {
 	if err := conn.Ping(); err != nil {
 		log.Fatalln(err)
 	}
+
 	if _, err = conn.Exec(string(schema)); err != nil && err != sql.ErrNoRows {
 		log.Fatalln(err)
 	}
 
-	Conn = &Database{conn}
+	Conn = conn
 	boil.SetDB(conn)
 }

@@ -7,9 +7,14 @@
       <main>
         <section class="feed" id="archives">
           {{- if .archives }}
-            {{- template "pagination" . }}
+            <header>
+              {{- template "sort". }}
+              {{- template "pagination" . }}
+            </header>
             {{- template "feed" . }}
-            {{- template "pagination" . }}
+            <footer>
+              {{- template "pagination" . }}
+            </footer>
           {{- end }}
         </section>
       </main>

@@ -9,13 +9,9 @@ type Magazine struct {
 	Count int64  `json:"count" boil:"archive_count"`
 }
 
-func NewMagazine(magazine *models.Magazine) *Magazine {
-	if magazine == nil {
+func NewMagazine(model *models.Magazine) *Magazine {
+	if model == nil {
 		return nil
 	}
-	return &Magazine{
-		ID:   magazine.ID,
-		Slug: magazine.Slug,
-		Name: magazine.Name,
-	}
+	return &Magazine{ID: model.ID, Slug: model.Slug, Name: model.Name}
 }

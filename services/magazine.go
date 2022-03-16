@@ -5,10 +5,8 @@ import (
 	"database/sql"
 	"log"
 	"strings"
-	"time"
 
-	. "koushoku/cache"
-
+	"koushoku/cache"
 	"koushoku/errs"
 	"koushoku/models"
 	"koushoku/modext"
@@ -20,28 +18,23 @@ import (
 func CreateMagazine(name string) (*modext.Magazine, error) {
 	name = strings.TrimSpace(name)
 	if len(name) == 0 {
-		return nil, errs.ErrMagazineNameRequired
+		return nil, errs.MagazineNameRequired
 	} else if len(name) > 128 {
-		return nil, errs.ErrMagazineNameTooLong
+		return nil, errs.MagazineNameTooLong
 	}
 
-	slug := slugify(name)
-
+	slug := Slugify(name)
 	magazine, err := models.Magazines(Where("slug = ?", slug)).OneG()
 	if err == sql.ErrNoRows {
-		magazine = &models.Magazine{
-			Name: name,
-			Slug: slug,
-		}
+		magazine = &models.Magazine{Name: name, Slug: slug}
 		if err = magazine.InsertG(boil.Infer()); err != nil {
 			log.Println(err)
-			return nil, errs.ErrUnknown
+			return nil, errs.Unknown
 		}
 	} else if err != nil {
 		log.Println(err)
-		return nil, errs.ErrUnknown
+		return nil, errs.Unknown
 	}
-
 	return modext.NewMagazine(magazine), nil
 }
 
@@ -49,10 +42,10 @@ func GetMagazine(slug string) (*modext.Magazine, error) {
 	magazine, err := models.Magazines(Where("slug = ?", slug)).OneG()
 	if err != nil {
 		if err == sql.ErrNoRows {
-			return nil, errs.ErrMagazineNotFound
+			return nil, errs.MagazineNotFound
 		}
 		log.Println(err)
-		return nil, errs.ErrUnknown
+		return nil, errs.Unknown
 	}
 	return modext.NewMagazine(magazine), nil
 }
@@ -68,31 +61,28 @@ type GetMagazinesResult struct {
 	Err       error
 }
 
-const prefixgm = "magazines"
-
 func GetMagazines(opts GetMagazinesOptions) (result *GetMagazinesResult) {
-	if opts.Offset < 0 {
-		opts.Offset = 0
-	}
+	opts.Limit = Max(opts.Limit, 0)
+	opts.Offset = Max(opts.Offset, 0)
 
+	const prefix = "magazines"
 	cacheKey := makeCacheKey(opts)
-	if c, err := Cache.GetWithPrefix(prefixgm, cacheKey); err == nil {
+	if c, err := cache.Taxonomies.GetWithPrefix(prefix, cacheKey); err == nil {
 		return c.(*GetMagazinesResult)
 	}
 
 	result = &GetMagazinesResult{Magazines: []*modext.Magazine{}}
 	defer func() {
 		if len(result.Magazines) > 0 || result.Total > 0 || result.Err != nil {
-			Cache.RemoveWithPrefix(prefixgm, cacheKey)
-			Cache.SetWithPrefix(prefixgm, cacheKey, result, time.Hour*24*7)
+			cache.Taxonomies.RemoveWithPrefix(prefix, cacheKey)
+			cache.Taxonomies.SetWithPrefix(prefix, cacheKey, result, 0)
 		}
 	}()
 
 	q := []QueryMod{
 		Select("magazine.*", "COUNT(archive.magazine_id) AS archive_count"),
 		InnerJoin("archive_magazines archive ON archive.magazine_id = magazine.id"),
-		GroupBy("magazine.id"),
-		OrderBy("magazine.name ASC"),
+		GroupBy("magazine.id"), OrderBy("magazine.name ASC"),
 	}
 
 	if opts.Limit > 0 {
@@ -105,14 +95,14 @@ func GetMagazines(opts GetMagazinesOptions) (result *GetMagazinesResult) {
 	err := models.Magazines(q...).BindG(context.Background(), &result.Magazines)
 	if err != nil {
 		log.Println(err)
-		result.Err = errs.ErrUnknown
+		result.Err = errs.Unknown
 		return
 	}
 
 	count, err := models.Magazines().CountG()
 	if err != nil {
 		log.Println(err)
-		result.Err = errs.ErrUnknown
+		result.Err = errs.Unknown
 	}
 
 	result.Total = int(count)
@@ -120,32 +110,26 @@ func GetMagazines(opts GetMagazinesOptions) (result *GetMagazinesResult) {
 }
 
 func GetMagazineCount() (int64, error) {
-	if c, err := Cache.Get("magazine-count"); err == nil {
+	const cachekey = "magazineCount"
+	if c, err := cache.Taxonomies.Get(cachekey); err == nil {
 		return c.(int64), nil
 	}
 
 	count, err := models.Magazines().CountG()
 	if err != nil {
 		log.Println(err)
-		return 0, errs.ErrUnknown
+		return 0, errs.Unknown
 	}
 
-	Cache.Set("magazine-count", count, time.Hour*24*7)
+	cache.Taxonomies.Set(cachekey, count, 0)
 	return count, nil
 }
 
-var isMagazineValidMap = QueryMapCache{
-	Map: make(map[string]bool),
-}
+var magazineIndexes = IndexMap{Cache: make(map[string]bool)}
 
 func IsMagazineValid(str string) (isValid bool) {
-	str = slugify(str)
-
-	isMagazineValidMap.RLock()
-	v, ok := isMagazineValidMap.Map[str]
-	isMagazineValidMap.RUnlock()
-
-	if ok {
+	str = Slugify(str)
+	if v, ok := magazineIndexes.Get(str); ok {
 		return v
 	}
 
@@ -154,12 +138,7 @@ func IsMagazineValid(str string) (isValid bool) {
 		return
 	}
 
-	defer func() {
-		isMagazineValidMap.Lock()
-		isMagazineValidMap.Map[str] = isValid
-		isMagazineValidMap.Unlock()
-	}()
-
+	defer magazineIndexes.Add(str, isValid)
 	for _, magazine := range result.Magazines {
 		if magazine.Slug == str {
 			isValid = true

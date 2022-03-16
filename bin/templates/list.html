@@ -8,9 +8,11 @@
         <section class="feed" id="taxonomy">
           <header>
             <h2>{{ .taxonomyTitle }} ({{ .total }})</h2>
+            {{- if .data }}
+              {{- template "pagination" . }}
+            {{- end }}
           </header>
           {{- if .data }}
-            {{- template "pagination" . }}
             <div class="entries">
               {{- $taxonomy := .taxonomy }}
               {{- range .data }}
@@ -22,7 +24,9 @@
                 </div>
               {{- end }}
             </div>
-            {{- template "pagination" . }}
+            <footer>
+              {{- template "pagination" . }}
+            </footer>
           {{- end }}
         </section>
       </main>

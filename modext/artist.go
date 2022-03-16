@@ -9,13 +9,9 @@ type Artist struct {
 	Count int64  `json:"count" boil:"archive_count"`
 }
 
-func NewArtist(artist *models.Artist) *Artist {
-	if artist == nil {
+func NewArtist(model *models.Artist) *Artist {
+	if model == nil {
 		return nil
 	}
-	return &Artist{
-		ID:   artist.ID,
-		Slug: artist.Slug,
-		Name: artist.Name,
-	}
+	return &Artist{ID: model.ID, Slug: model.Slug, Name: model.Name}
 }

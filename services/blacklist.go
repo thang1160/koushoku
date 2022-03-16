@@ -10,24 +10,24 @@ import (
 	. "koushoku/config"
 )
 
-var blacklist struct {
-	Archives  map[string]bool
-	ArchivesG []string
-	Artists   map[string]bool
-	Circles   map[string]bool
-	Magazines map[string]bool
-	Tags      map[string]bool
+var blacklists struct {
+	ArchiveMatches   map[string]bool
+	ArchiveWildcards []string
+	ArtistMatches    map[string]bool
+	CircleMatches    map[string]bool
+	MagazineMatches  map[string]bool
+	TagMatches       map[string]bool
 
 	once sync.Once
 }
 
-func initBlacklist() {
-	blacklist.once.Do(func() {
-		blacklist.Archives = make(map[string]bool)
-		blacklist.Artists = make(map[string]bool)
-		blacklist.Circles = make(map[string]bool)
-		blacklist.Magazines = make(map[string]bool)
-		blacklist.Tags = make(map[string]bool)
+func loadBlacklists() {
+	blacklists.once.Do(func() {
+		blacklists.ArchiveMatches = make(map[string]bool)
+		blacklists.ArtistMatches = make(map[string]bool)
+		blacklists.CircleMatches = make(map[string]bool)
+		blacklists.MagazineMatches = make(map[string]bool)
+		blacklists.TagMatches = make(map[string]bool)
 
 		stat, err := os.Stat(Config.Paths.Blacklist)
 		if os.IsNotExist(err) || stat.IsDir() {
@@ -50,25 +50,26 @@ func initBlacklist() {
 				continue
 			}
 
-			arr := strings.Split(strings.ToLower(line), ":")
-			if len(arr) < 2 {
+			strs := strings.Split(strings.ToLower(line), ":")
+			if len(strs) < 2 {
 				continue
 			}
 
-			v := slugify(strings.Join(arr[1:], ":"))
-			switch strings.TrimSpace(arr[0]) {
-			case "artist":
-				blacklist.Artists[v] = true
-			case "circle":
-				blacklist.Circles[v] = true
-			case "magazine":
-				blacklist.Magazines[v] = true
+			v := Slugify(strings.Join(strs[1:], ":"))
+
+			switch strings.TrimSpace(strs[0]) {
 			case "title":
-				blacklist.Archives[v] = true
+				blacklists.ArchiveMatches[v] = true
 			case "title*":
-				blacklist.ArchivesG = append(blacklist.ArchivesG, v)
+				blacklists.ArchiveWildcards = append(blacklists.ArchiveWildcards, v)
+			case "artist":
+				blacklists.ArtistMatches[v] = true
+			case "circle":
+				blacklists.CircleMatches[v] = true
+			case "magazine":
+				blacklists.MagazineMatches[v] = true
 			case "tag":
-				blacklist.Tags[v] = true
+				blacklists.TagMatches[v] = true
 			}
 		}
 

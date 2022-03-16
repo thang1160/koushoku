@@ -9,13 +9,9 @@ type Circle struct {
 	Count int64  `json:"count" boil:"archive_count"`
 }
 
-func NewCircle(circle *models.Circle) *Circle {
-	if circle == nil {
+func NewCircle(model *models.Circle) *Circle {
+	if model == nil {
 		return nil
 	}
-	return &Circle{
-		ID:   circle.ID,
-		Slug: circle.Slug,
-		Name: circle.Name,
-	}
+	return &Circle{ID: model.ID, Slug: model.Slug, Name: model.Name}
 }

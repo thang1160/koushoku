@@ -7,7 +7,7 @@ module.exports = {
   devtool: "source-map",
   entry: {
     main: path.resolve(__dirname, "web/main.ts"),
-    serviceWorker: path.resolve(__dirname, "web/serviceWorker.ts")
+    //serviceWorker: path.resolve(__dirname, "web/serviceWorker.ts")
   },
   output: {
     clean: true,

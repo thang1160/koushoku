@@ -34,19 +34,6 @@ func Archive(c *server.Context) {
 		return
 	}
 
-	if strings.EqualFold(c.Query("download"), "true") {
-		fp, err := services.GetArchiveSymlink(int(id))
-		if err != nil {
-			c.Status(http.StatusInternalServerError)
-			return
-		} else if len(fp) == 0 {
-			c.Status(http.StatusNotFound)
-			return
-		}
-		c.StreamFile(fp)
-		return
-	}
-
 	opts := services.GetArchiveOptions{
 		Preloads: []string{
 			services.ArchiveRels.Artists,
@@ -71,6 +58,25 @@ func Archive(c *server.Context) {
 
 	c.SetData("archive", result.Archive)
 	c.Cache(http.StatusOK, archiveTemplateName)
+}
+
+func Download(c *server.Context) {
+	id, err := c.ParamInt64("id")
+	if err != nil {
+		c.Status(http.StatusBadRequest)
+		return
+	}
+
+	fp, err := services.GetArchiveSymlink(int(id))
+	if err != nil {
+		c.Status(http.StatusInternalServerError)
+		return
+	} else if len(fp) == 0 {
+		c.Status(http.StatusNotFound)
+		return
+	}
+
+	c.FileAttachment(fp, filepath.Base(fp))
 }
 
 func Read(c *server.Context) {
@@ -134,12 +140,7 @@ func createThumbnail(c *server.Context, f io.Reader, fp string, width int) (ok b
 		return
 	}
 
-	opts := services.ResizeOptions{
-		Width:  width,
-		Height: width * 3 / 2,
-		Crop:   true,
-	}
-
+	opts := services.ResizeOptions{Width: width, Height: width * 3 / 2}
 	if err := services.ResizeImage(tmp.Name(), fp, opts); err != nil {
 		c.Status(http.StatusInternalServerError)
 		return
@@ -174,8 +175,8 @@ func ServePage(c *server.Context) {
 	}
 
 	var fp string
-	if width > 0 && width <= 1024 && width%128 == 0 {
-		fp = filepath.Join(Config.Directories.Thumbnails, fmt.Sprintf("%d-%d.%d.jpg", id, pageNum, width))
+	if pageNum == 1 && (width == 288 || width == 896) {
+		fp = filepath.Join(Config.Directories.Thumbnails, fmt.Sprintf("%d-%d.%d.webp", id, pageNum, width))
 		if _, err := os.Stat(fp); err == nil {
 			c.ServeFile(fp)
 			return
@@ -194,9 +195,7 @@ func ServePage(c *server.Context) {
 		stat := f.FileInfo()
 		name := stat.Name()
 
-		if stat.IsDir() ||
-			!(strings.HasSuffix(name, ".jpg") ||
-				strings.HasSuffix(name, ".png")) {
+		if stat.IsDir() || !services.IsImage(name) {
 			continue
 		}
 

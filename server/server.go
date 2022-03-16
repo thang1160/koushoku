@@ -4,10 +4,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"net/http/pprof"
-	"path/filepath"
 	"strings"
-	"time"
 
 	. "koushoku/config"
 
@@ -39,59 +36,17 @@ func Init() {
 	if secretHandler != nil {
 		secretHandler()
 	}
-	server.NoRoute(Handler(noRoute).wrap())
-
-	assets := server.Group("/")
-	assets.Use(func(c *gin.Context) {
-		c.Header("Cache-Control", "public, max-age=300")
-	})
-
-	assets.Static("/js", filepath.Join(Config.Directories.Root, "assets/js"))
-	assets.Static("/css", filepath.Join(Config.Directories.Root, "assets/css"))
-	assets.Static("/fonts", filepath.Join(Config.Directories.Root, "assets/fonts"))
-
-	assets.StaticFile("/serviceWorker.js", filepath.Join(Config.Directories.Root, "assets/js/serviceWorker.js"))
-	assets.StaticFile("/favicon.ico", filepath.Join(Config.Directories.Root, "assets/favicon.ico"))
-	assets.StaticFile("/robots.txt", filepath.Join(Config.Directories.Root, "assets/robots.txt"))
-
-	if gin.Mode() == gin.DebugMode {
-		group := server.Group("/debug/pprof")
-		{
-			group.GET("/", gin.WrapH(http.HandlerFunc(pprof.Index)))
-			group.GET("/cmdline", gin.WrapH(http.HandlerFunc(pprof.Cmdline)))
-			group.GET("/profile", gin.WrapH(http.HandlerFunc(pprof.Profile)))
-			group.POST("/symbol", gin.WrapH(http.HandlerFunc(pprof.Symbol)))
-			group.GET("/symbol", gin.WrapH(http.HandlerFunc(pprof.Symbol)))
-			group.GET("/trace", gin.WrapH(http.HandlerFunc(pprof.Trace)))
-			group.GET("/allocs", gin.WrapH(http.HandlerFunc(pprof.Handler("allocs").ServeHTTP)))
-			group.GET("/block", gin.WrapH(http.HandlerFunc(pprof.Handler("block").ServeHTTP)))
-			group.GET("/goroutine", gin.WrapH(http.HandlerFunc(pprof.Handler("goroutine").ServeHTTP)))
-			group.GET("/heap", gin.WrapH(http.HandlerFunc(pprof.Handler("heap").ServeHTTP)))
-			group.GET("/mutex", gin.WrapH(http.HandlerFunc(pprof.Handler("mutex").ServeHTTP)))
-			group.GET("/threadcreate", gin.WrapH(http.HandlerFunc(pprof.Handler("threadcreate").ServeHTTP)))
-		}
-	}
 }
 
-func Start() {
+func Start(port int) {
 	if gin.Mode() != gin.DebugMode {
-		log.Println("Listening and serving HTTP on :", Config.Server.Port)
+		log.Println("Listening and serving HTTP on :", port)
 	}
 
-	srv := &http.Server{
-		Addr:           fmt.Sprintf(":%d", Config.Server.Port),
-		Handler:        server,
-		ReadTimeout:    time.Minute,
-		WriteTimeout:   time.Minute,
-		MaxHeaderBytes: 1 << 20,
-	}
+	srv := &http.Server{Addr: fmt.Sprintf(":%d", port), Handler: server}
 	if err := srv.ListenAndServe(); err != nil {
 		log.Fatalln(err)
 	}
-}
-
-func noRoute(c *Context) {
-	c.HTML(http.StatusNotFound, "error.html")
 }
 
 func (h Handler) wrap() gin.HandlerFunc {
@@ -115,8 +70,16 @@ func (h Handlers) wrap() []gin.HandlerFunc {
 	return ginHandlers
 }
 
+func Group(relativePath string, handlers ...Handler) *gin.RouterGroup {
+	return server.Group(relativePath, Handlers(handlers).wrap()...)
+}
+
 func Handle(method string, relativePath string, handlers ...Handler) {
 	server.Handle(method, relativePath, Handlers(handlers).wrap()...)
+}
+
+func NoRoute(handlers ...Handler) {
+	server.NoRoute(Handlers(handlers).wrap()...)
 }
 
 func GET(relativePath string, handlers ...Handler) {

@@ -9,13 +9,9 @@ type Tag struct {
 	Count int64  `json:"count" boil:"archive_count"`
 }
 
-func NewTag(tag *models.Tag) *Tag {
-	if tag == nil {
+func NewTag(model *models.Tag) *Tag {
+	if model == nil {
 		return nil
 	}
-	return &Tag{
-		ID:   tag.ID,
-		Slug: tag.Slug,
-		Name: tag.Name,
-	}
+	return &Tag{ID: model.ID, Slug: model.Slug, Name: model.Name}
 }

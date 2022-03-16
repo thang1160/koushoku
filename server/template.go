@@ -2,7 +2,6 @@ package server
 
 import (
 	"bytes"
-	"errors"
 	"fmt"
 	"html/template"
 	"io/fs"
@@ -12,16 +11,18 @@ import (
 	"strings"
 	"sync"
 
-	. "koushoku/cache"
+	"koushoku/cache"
 	. "koushoku/config"
 
 	"github.com/gin-gonic/gin"
+	"github.com/pkg/errors"
 )
 
 type RenderOptions struct {
-	Status int
+	Cache  bool
+	Data   map[string]any
 	Name   string
-	Data   map[string]interface{}
+	Status int
 }
 
 const htmlContentType = "text/html; charset=utf-8"
@@ -43,7 +44,7 @@ func LoadTemplates() {
 				return err
 			}
 			files = append(files, path)
-			return err
+			return nil
 		})
 	if err != nil {
 		log.Fatalln(err)
@@ -55,7 +56,7 @@ func LoadTemplates() {
 	}
 }
 
-func parseTemplate(name string, data interface{}) ([]byte, error) {
+func parseTemplate(name string, data any) ([]byte, error) {
 	if gin.Mode() == gin.DebugMode {
 		LoadTemplates()
 	}
@@ -74,13 +75,13 @@ func parseTemplate(name string, data interface{}) ([]byte, error) {
 }
 
 func getTemplate(name, key string) ([]byte, bool) {
-	var v interface{}
+	var v any
 	var err error
 
 	if len(key) > 0 {
-		v, err = TemplatesCache.Get(fmt.Sprintf("%s:%s", name, key))
+		v, err = cache.Templates.Get(fmt.Sprintf("%s:%s", name, key))
 	} else {
-		v, err = TemplatesCache.Get(name)
+		v, err = cache.Templates.Get(name)
 	}
 
 	if err != nil {
@@ -89,23 +90,23 @@ func getTemplate(name, key string) ([]byte, bool) {
 	return v.([]byte), true
 }
 
-func setTemplate(name, key string, data interface{}) ([]byte, error) {
+func setTemplate(name, key string, data any) ([]byte, error) {
 	buf, err := parseTemplate(name, data)
 	if err != nil {
 		return nil, err
 	}
 
 	if len(key) > 0 {
-		TemplatesCache.Set(fmt.Sprintf("%s:%s", name, key), buf, 0)
+		cache.Templates.Set(fmt.Sprintf("%s:%s", name, key), buf, 0)
 	} else {
-		TemplatesCache.Set(name, buf, 0)
+		cache.Templates.Set(name, buf, 0)
 	}
 	return buf, nil
 }
 
-func renderTemplate(c *Context, cache bool, opts *RenderOptions) {
+func renderTemplate(c *Context, opts *RenderOptions) {
 	var buf []byte
-	if cache {
+	if opts.Cache {
 		var ok bool
 		if buf, ok = getTemplate(opts.Name, c.cacheKey()); !ok {
 			var err error

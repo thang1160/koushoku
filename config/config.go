@@ -8,7 +8,6 @@ import (
 	"path/filepath"
 	"strconv"
 	"sync"
-	"time"
 
 	"github.com/jessevdk/go-flags"
 	"gopkg.in/ini.v1"
@@ -18,8 +17,10 @@ import (
 var buf []byte
 
 var opts struct {
-	Path string `short:"c" long:"config" description:"Path to config file"`
-	Mode string `short:"m" long:"mode" description:"App mode"`
+	Path     string `short:"c" description:"Path to config file"`
+	Mode     string `short:"m" description:"App mode"`
+	WebPort  int    `short:"p" description:"Web server port"`
+	DataPort int    `short:"d" description:"Data server port"`
 }
 
 var Config struct {
@@ -29,10 +30,11 @@ var Config struct {
 	Mode string
 
 	Meta struct {
-		BaseURL     string `json:"baseURL"`
-		Title       string `json:"title"`
-		Description string `json:"description"`
-		Language    string `json:"language"`
+		BaseURL     string
+		DataBaseURL string
+		Title       string
+		Description string
+		Language    string
 	}
 
 	Database struct {
@@ -45,12 +47,18 @@ var Config struct {
 	}
 
 	Server struct {
-		Port int
+		WebPort  int
+		DataPort int
 	}
 
-	Cache struct {
-		DefaultTTL   time.Duration
-		TemplatesTTL time.Duration
+	HTTP struct {
+		Cookie string
+	}
+
+	Cloudflare struct {
+		Email   string
+		ApiKey  string
+		ZoneTag string
 	}
 
 	Directories struct {
@@ -73,9 +81,10 @@ func init() {
 	log.SetFlags(log.LstdFlags | log.Lshortfile)
 
 	exec, err := os.Executable()
+	if err == nil {
+		exec, err = filepath.EvalSymlinks(exec)
+	}
 	if err != nil {
-		log.Fatalln(err)
-	} else if exec, err = filepath.EvalSymlinks(exec); err != nil {
 		log.Fatalln(err)
 	}
 
@@ -152,6 +161,7 @@ func init() {
 	Config.Mode = file.Section("").Key("mode").MustString("production")
 
 	Config.Meta.BaseURL = file.Section("meta").Key("base_url").MustString("http://localhost:42073")
+	Config.Meta.DataBaseURL = file.Section("meta").Key("data_base_url").MustString("http://localhost:42075")
 	Config.Meta.Title = file.Section("meta").Key("title").MustString("Koushoku")
 	Config.Meta.Description = file.Section("meta").Key("description").String()
 	Config.Meta.Language = file.Section("meta").Key("language").MustString("en-US")
@@ -163,12 +173,16 @@ func init() {
 	Config.Database.Passwd = file.Section("database").Key("passwd").MustString("koushoku")
 	Config.Database.SSLMode = file.Section("database").Key("ssl_mode").MustString("disable")
 
-	Config.Server.Port = file.Section("server").Key("port").MustInt(42073)
+	Config.Server.WebPort = 42073
+	Config.Server.DataPort = 42075
+	Config.HTTP.Cookie = file.Section("http").Key("cookie").String()
 
-	Config.Cache.DefaultTTL = time.Duration(file.Section("cache").Key("default_ttl").MustInt(86400000000000))
-	Config.Cache.TemplatesTTL = time.Duration(file.Section("cache").Key("templates_ttl").MustInt(300000000000))
+	Config.Cloudflare.Email = file.Section("cloudflare").Key("email").MustString("")
+	Config.Cloudflare.ApiKey = file.Section("cloudflare").Key("api_key").MustString("")
+	Config.Cloudflare.ZoneTag = file.Section("cloudflare").Key("zone_tag").MustString("")
 
-	Config.Directories.Data = file.Section("directories").Key("data").MustString(filepath.Join(Config.Directories.Root, "data"))
+	Config.Directories.Data = file.Section("directories").Key("data").
+		MustString(filepath.Join(Config.Directories.Root, "data"))
 	if _, err := os.Stat(Config.Directories.Data); os.IsNotExist(err) {
 		log.Println("Creating data directory...")
 		if err := os.Mkdir(Config.Directories.Data, 0755); err != nil {
@@ -176,11 +190,19 @@ func init() {
 		}
 	}
 
+	Save()
+
 	if len(opts.Mode) > 0 {
 		Config.Mode = opts.Mode
 	}
 
-	Save()
+	if opts.WebPort > 0 {
+		Config.Server.WebPort = opts.WebPort
+	}
+
+	if opts.DataPort > 0 {
+		Config.Server.DataPort = opts.DataPort
+	}
 }
 
 func Save() error {
@@ -190,6 +212,7 @@ func Save() error {
 	Config.file.Section("").Key("mode").SetValue(Config.Mode)
 
 	Config.file.Section("meta").Key("base_url").SetValue(Config.Meta.BaseURL)
+	Config.file.Section("meta").Key("data_base_url").SetValue(Config.Meta.DataBaseURL)
 	Config.file.Section("meta").Key("description").SetValue(Config.Meta.Description)
 	Config.file.Section("meta").Key("title").SetValue(Config.Meta.Title)
 	Config.file.Section("meta").Key("language").SetValue(Config.Meta.Language)
@@ -201,10 +224,11 @@ func Save() error {
 	Config.file.Section("database").Key("passwd").SetValue(Config.Database.Passwd)
 	Config.file.Section("database").Key("ssl_mode").SetValue(Config.Database.SSLMode)
 
-	Config.file.Section("server").Key("port").SetValue(strconv.Itoa(Config.Server.Port))
+	Config.file.Section("http").Key("cookie").SetValue(Config.HTTP.Cookie)
 
-	Config.file.Section("cache").Key("default_ttl").SetValue(strconv.Itoa(int(Config.Cache.DefaultTTL)))
-	Config.file.Section("cache").Key("templates_ttl").SetValue(strconv.Itoa(int(Config.Cache.TemplatesTTL)))
+	Config.file.Section("cloudflare").Key("email").SetValue(Config.Cloudflare.Email)
+	Config.file.Section("cloudflare").Key("api_key").SetValue(Config.Cloudflare.ApiKey)
+	Config.file.Section("cloudflare").Key("zone_tag").SetValue(Config.Cloudflare.ZoneTag)
 
 	Config.file.Section("directories").Key("data").SetValue(Config.Directories.Data)
 

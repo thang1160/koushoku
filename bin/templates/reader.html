@@ -12,7 +12,7 @@
           {{- $next = (inc $next) }}
         {{- end }}
         <a href="/archive/{{ .archive.ID }}/{{ .archive.Slug }}/{{ $next }}">
-          <img src="/data/{{ .archive.ID }}/{{ .pageNum }}.jpg" />
+          <img src="{{ .dataBaseURL }}/data/{{ .archive.ID }}/{{ .pageNum }}.jpg" />
         </a>
       </main>
       <footer>

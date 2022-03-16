@@ -226,12 +226,14 @@ var ArchiveRels = struct {
 	Magazines string
 	Parodies  string
 	Tags      string
+	Users     string
 }{
 	Artists:   "Artists",
 	Circles:   "Circles",
 	Magazines: "Magazines",
 	Parodies:  "Parodies",
 	Tags:      "Tags",
+	Users:     "Users",
 }
 
 // archiveR is where relationships are stored.
@@ -241,6 +243,7 @@ type archiveR struct {
 	Magazines MagazineSlice `boil:"Magazines" json:"Magazines" toml:"Magazines" yaml:"Magazines"`
 	Parodies  ParodySlice   `boil:"Parodies" json:"Parodies" toml:"Parodies" yaml:"Parodies"`
 	Tags      TagSlice      `boil:"Tags" json:"Tags" toml:"Tags" yaml:"Tags"`
+	Users     UserSlice     `boil:"Users" json:"Users" toml:"Users" yaml:"Users"`
 }
 
 // NewStruct creates a new relationship struct
@@ -626,6 +629,28 @@ func (o *Archive) Tags(mods ...qm.QueryMod) tagQuery {
 
 	if len(queries.GetSelect(query.Query)) == 0 {
 		queries.SetSelect(query.Query, []string{"\"tag\".*"})
+	}
+
+	return query
+}
+
+// Users retrieves all the user's Users with an executor.
+func (o *Archive) Users(mods ...qm.QueryMod) userQuery {
+	var queryMods []qm.QueryMod
+	if len(mods) != 0 {
+		queryMods = append(queryMods, mods...)
+	}
+
+	queryMods = append(queryMods,
+		qm.InnerJoin("\"user_favorites\" on \"users\".\"id\" = \"user_favorites\".\"user_id\""),
+		qm.Where("\"user_favorites\".\"archive_id\"=?", o.ID),
+	)
+
+	query := Users(queryMods...)
+	queries.SetFrom(query.Query, "\"users\"")
+
+	if len(queries.GetSelect(query.Query)) == 0 {
+		queries.SetSelect(query.Query, []string{"\"users\".*"})
 	}
 
 	return query
@@ -1196,6 +1221,121 @@ func (archiveL) LoadTags(e boil.Executor, singular bool, maybeArchive interface{
 				local.R.Tags = append(local.R.Tags, foreign)
 				if foreign.R == nil {
 					foreign.R = &tagR{}
+				}
+				foreign.R.Archives = append(foreign.R.Archives, local)
+				break
+			}
+		}
+	}
+
+	return nil
+}
+
+// LoadUsers allows an eager lookup of values, cached into the
+// loaded structs of the objects. This is for a 1-M or N-M relationship.
+func (archiveL) LoadUsers(e boil.Executor, singular bool, maybeArchive interface{}, mods queries.Applicator) error {
+	var slice []*Archive
+	var object *Archive
+
+	if singular {
+		object = maybeArchive.(*Archive)
+	} else {
+		slice = *maybeArchive.(*[]*Archive)
+	}
+
+	args := make([]interface{}, 0, 1)
+	if singular {
+		if object.R == nil {
+			object.R = &archiveR{}
+		}
+		args = append(args, object.ID)
+	} else {
+	Outer:
+		for _, obj := range slice {
+			if obj.R == nil {
+				obj.R = &archiveR{}
+			}
+
+			for _, a := range args {
+				if a == obj.ID {
+					continue Outer
+				}
+			}
+
+			args = append(args, obj.ID)
+		}
+	}
+
+	if len(args) == 0 {
+		return nil
+	}
+
+	query := NewQuery(
+		qm.Select("\"users\".id, \"users\".created_at, \"users\".updated_at, \"users\".email, \"users\".password, \"users\".name, \"users\".is_banned, \"users\".is_admin, \"a\".\"archive_id\""),
+		qm.From("\"users\""),
+		qm.InnerJoin("\"user_favorites\" as \"a\" on \"users\".\"id\" = \"a\".\"user_id\""),
+		qm.WhereIn("\"a\".\"archive_id\" in ?", args...),
+	)
+	if mods != nil {
+		mods.Apply(query)
+	}
+
+	results, err := query.Query(e)
+	if err != nil {
+		return errors.Wrap(err, "failed to eager load users")
+	}
+
+	var resultSlice []*User
+
+	var localJoinCols []int64
+	for results.Next() {
+		one := new(User)
+		var localJoinCol int64
+
+		err = results.Scan(&one.ID, &one.CreatedAt, &one.UpdatedAt, &one.Email, &one.Password, &one.Name, &one.IsBanned, &one.IsAdmin, &localJoinCol)
+		if err != nil {
+			return errors.Wrap(err, "failed to scan eager loaded results for users")
+		}
+		if err = results.Err(); err != nil {
+			return errors.Wrap(err, "failed to plebian-bind eager loaded slice users")
+		}
+
+		resultSlice = append(resultSlice, one)
+		localJoinCols = append(localJoinCols, localJoinCol)
+	}
+
+	if err = results.Close(); err != nil {
+		return errors.Wrap(err, "failed to close results in eager load on users")
+	}
+	if err = results.Err(); err != nil {
+		return errors.Wrap(err, "error occurred during iteration of eager loaded relations for users")
+	}
+
+	if len(userAfterSelectHooks) != 0 {
+		for _, obj := range resultSlice {
+			if err := obj.doAfterSelectHooks(e); err != nil {
+				return err
+			}
+		}
+	}
+	if singular {
+		object.R.Users = resultSlice
+		for _, foreign := range resultSlice {
+			if foreign.R == nil {
+				foreign.R = &userR{}
+			}
+			foreign.R.Archives = append(foreign.R.Archives, object)
+		}
+		return nil
+	}
+
+	for i, foreign := range resultSlice {
+		localJoinCol := localJoinCols[i]
+		for _, local := range slice {
+			if local.ID == localJoinCol {
+				local.R.Users = append(local.R.Users, foreign)
+				if foreign.R == nil {
+					foreign.R = &userR{}
 				}
 				foreign.R.Archives = append(foreign.R.Archives, local)
 				break
@@ -2032,6 +2172,175 @@ func (o *Archive) RemoveTags(exec boil.Executor, related ...*Tag) error {
 }
 
 func removeTagsFromArchivesSlice(o *Archive, related []*Tag) {
+	for _, rel := range related {
+		if rel.R == nil {
+			continue
+		}
+		for i, ri := range rel.R.Archives {
+			if o.ID != ri.ID {
+				continue
+			}
+
+			ln := len(rel.R.Archives)
+			if ln > 1 && i < ln-1 {
+				rel.R.Archives[i] = rel.R.Archives[ln-1]
+			}
+			rel.R.Archives = rel.R.Archives[:ln-1]
+			break
+		}
+	}
+}
+
+// AddUsersG adds the given related objects to the existing relationships
+// of the archive, optionally inserting them as new records.
+// Appends related to o.R.Users.
+// Sets related.R.Archives appropriately.
+// Uses the global database handle.
+func (o *Archive) AddUsersG(insert bool, related ...*User) error {
+	return o.AddUsers(boil.GetDB(), insert, related...)
+}
+
+// AddUsers adds the given related objects to the existing relationships
+// of the archive, optionally inserting them as new records.
+// Appends related to o.R.Users.
+// Sets related.R.Archives appropriately.
+func (o *Archive) AddUsers(exec boil.Executor, insert bool, related ...*User) error {
+	var err error
+	for _, rel := range related {
+		if insert {
+			if err = rel.Insert(exec, boil.Infer()); err != nil {
+				return errors.Wrap(err, "failed to insert into foreign table")
+			}
+		}
+	}
+
+	for _, rel := range related {
+		query := "insert into \"user_favorites\" (\"archive_id\", \"user_id\") values ($1, $2)"
+		values := []interface{}{o.ID, rel.ID}
+
+		if boil.DebugMode {
+			fmt.Fprintln(boil.DebugWriter, query)
+			fmt.Fprintln(boil.DebugWriter, values)
+		}
+		_, err = exec.Exec(query, values...)
+		if err != nil {
+			return errors.Wrap(err, "failed to insert into join table")
+		}
+	}
+	if o.R == nil {
+		o.R = &archiveR{
+			Users: related,
+		}
+	} else {
+		o.R.Users = append(o.R.Users, related...)
+	}
+
+	for _, rel := range related {
+		if rel.R == nil {
+			rel.R = &userR{
+				Archives: ArchiveSlice{o},
+			}
+		} else {
+			rel.R.Archives = append(rel.R.Archives, o)
+		}
+	}
+	return nil
+}
+
+// SetUsersG removes all previously related items of the
+// archive replacing them completely with the passed
+// in related items, optionally inserting them as new records.
+// Sets o.R.Archives's Users accordingly.
+// Replaces o.R.Users with related.
+// Sets related.R.Archives's Users accordingly.
+// Uses the global database handle.
+func (o *Archive) SetUsersG(insert bool, related ...*User) error {
+	return o.SetUsers(boil.GetDB(), insert, related...)
+}
+
+// SetUsers removes all previously related items of the
+// archive replacing them completely with the passed
+// in related items, optionally inserting them as new records.
+// Sets o.R.Archives's Users accordingly.
+// Replaces o.R.Users with related.
+// Sets related.R.Archives's Users accordingly.
+func (o *Archive) SetUsers(exec boil.Executor, insert bool, related ...*User) error {
+	query := "delete from \"user_favorites\" where \"archive_id\" = $1"
+	values := []interface{}{o.ID}
+	if boil.DebugMode {
+		fmt.Fprintln(boil.DebugWriter, query)
+		fmt.Fprintln(boil.DebugWriter, values)
+	}
+	_, err := exec.Exec(query, values...)
+	if err != nil {
+		return errors.Wrap(err, "failed to remove relationships before set")
+	}
+
+	removeUsersFromArchivesSlice(o, related)
+	if o.R != nil {
+		o.R.Users = nil
+	}
+	return o.AddUsers(exec, insert, related...)
+}
+
+// RemoveUsersG relationships from objects passed in.
+// Removes related items from R.Users (uses pointer comparison, removal does not keep order)
+// Sets related.R.Archives.
+// Uses the global database handle.
+func (o *Archive) RemoveUsersG(related ...*User) error {
+	return o.RemoveUsers(boil.GetDB(), related...)
+}
+
+// RemoveUsers relationships from objects passed in.
+// Removes related items from R.Users (uses pointer comparison, removal does not keep order)
+// Sets related.R.Archives.
+func (o *Archive) RemoveUsers(exec boil.Executor, related ...*User) error {
+	if len(related) == 0 {
+		return nil
+	}
+
+	var err error
+	query := fmt.Sprintf(
+		"delete from \"user_favorites\" where \"archive_id\" = $1 and \"user_id\" in (%s)",
+		strmangle.Placeholders(dialect.UseIndexPlaceholders, len(related), 2, 1),
+	)
+	values := []interface{}{o.ID}
+	for _, rel := range related {
+		values = append(values, rel.ID)
+	}
+
+	if boil.DebugMode {
+		fmt.Fprintln(boil.DebugWriter, query)
+		fmt.Fprintln(boil.DebugWriter, values)
+	}
+	_, err = exec.Exec(query, values...)
+	if err != nil {
+		return errors.Wrap(err, "failed to remove relationships before set")
+	}
+	removeUsersFromArchivesSlice(o, related)
+	if o.R == nil {
+		return nil
+	}
+
+	for _, rel := range related {
+		for i, ri := range o.R.Users {
+			if rel != ri {
+				continue
+			}
+
+			ln := len(o.R.Users)
+			if ln > 1 && i < ln-1 {
+				o.R.Users[i] = o.R.Users[ln-1]
+			}
+			o.R.Users = o.R.Users[:ln-1]
+			break
+		}
+	}
+
+	return nil
+}
+
+func removeUsersFromArchivesSlice(o *Archive, related []*User) {
 	for _, rel := range related {
 		if rel.R == nil {
 			continue

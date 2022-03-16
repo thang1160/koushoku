@@ -16,33 +16,18 @@ type LRU struct {
 	instance gcache.Cache
 }
 
-// CacheStats represents the stats of the LRU cache.
-type CacheStats struct {
-	Size        int     `json:"size"`
-	HitCount    uint64  `json:"hitCount"`
-	HitRate     float64 `json:"hitRate"`
-	MissCount   uint64  `json:"missCount"`
-	LookupCount uint64  `json:"lookupCount"`
-}
-
-// GetStats returns the stats of the LRU cache.
-func (c *LRU) GetStats() *CacheStats {
-	return &CacheStats{
-		Size:        c.instance.Len(true),
-		HitCount:    c.instance.HitCount(),
-		HitRate:     c.instance.HitRate(),
-		MissCount:   c.instance.MissCount(),
-		LookupCount: c.instance.LookupCount(),
-	}
+// New creates a new LRU cache.
+func New(size int, expr time.Duration) *LRU {
+	return &LRU{gcache.New(size).LRU().Expiration(expr).Build()}
 }
 
 // Get gets a value from the cache by using string key.
-func (c *LRU) Get(key string) (interface{}, error) {
+func (c *LRU) Get(key string) (any, error) {
 	return c.instance.Get(key)
 }
 
 // Set sets a value to the cache by using string key.
-func (c *LRU) Set(key string, value interface{}, ttl time.Duration) error {
+func (c *LRU) Set(key string, value any, ttl time.Duration) error {
 	if ttl > 0 {
 		return c.instance.SetWithExpire(key, value, ttl)
 	}
@@ -60,7 +45,7 @@ func (c *LRU) Has(key string) bool {
 }
 
 // Keys gets all the keys in the cache.
-func (c *LRU) Keys() []interface{} {
+func (c *LRU) Keys() []any {
 	return c.instance.Keys(false)
 }
 
@@ -70,12 +55,12 @@ func (c *LRU) Purge() {
 }
 
 // GetWIthInt64 gets a value from the cache by using int64 key.
-func (c *LRU) GetWithInt64(cid int64) (interface{}, error) {
+func (c *LRU) GetWithInt64(cid int64) (any, error) {
 	return c.instance.Get(strconv.Itoa(int(cid)))
 }
 
 // SetWithInt64 sets a value to the cache by using int64 key.
-func (c *LRU) SetWithInt64(cid int64, value interface{}, ttl time.Duration) error {
+func (c *LRU) SetWithInt64(cid int64, value any, ttl time.Duration) error {
 	if ttl > 0 {
 		return c.instance.SetWithExpire(strconv.Itoa(int(cid)), value, ttl)
 	}
@@ -94,13 +79,13 @@ func (c *LRU) HasWithInt64(cid int64) bool {
 
 // GetWithPrefix gets a value from the cache by using prefix and key.
 // Type of prefix and key can be string or int64.
-func (c *LRU) GetWithPrefix(prefix, key interface{}) (interface{}, error) {
+func (c *LRU) GetWithPrefix(prefix, key any) (any, error) {
 	return c.instance.Get(fmt.Sprintf("/%v/%v", prefix, key))
 }
 
 // SetWithPrefix sets a value to the cache by using prefix and key.
 // Type of prefix and key can be string or int64.
-func (c *LRU) SetWithPrefix(prefix, key, value interface{}, ttl time.Duration) error {
+func (c *LRU) SetWithPrefix(prefix, key, value any, ttl time.Duration) error {
 	if ttl > 0 {
 		return c.instance.SetWithExpire(fmt.Sprintf("/%v/%v", prefix, key), value, ttl)
 	}
@@ -109,18 +94,18 @@ func (c *LRU) SetWithPrefix(prefix, key, value interface{}, ttl time.Duration) e
 
 // RemoveWithPrefix removes a value from the cache by using prefix and key.
 // Type of prefix and key can be string or int64.
-func (c *LRU) RemoveWithPrefix(prefix, key interface{}) bool {
+func (c *LRU) RemoveWithPrefix(prefix, key any) bool {
 	return c.instance.Remove(fmt.Sprintf("/%v/%v", prefix, key))
 }
 
 // HasWithPrefix checks if the cache has the key.
-func (c *LRU) HasWithPrefix(prefix, key interface{}) bool {
+func (c *LRU) HasWithPrefix(prefix, key any) bool {
 	return c.instance.Has(fmt.Sprintf("/%v/%v", prefix, key))
 }
 
 // PurgeWithPrefix purges all the cache with the given prefix.
 // Type of prefix can be string or int64.
-func (c *LRU) PurgeWithPrefix(prefix interface{}) {
+func (c *LRU) PurgeWithPrefix(prefix any) {
 	for _, k := range c.instance.Keys(false) {
 		if strings.HasPrefix(fmt.Sprintf("%v", k), fmt.Sprintf("/%v/", prefix)) {
 			c.instance.Remove(k)
@@ -130,7 +115,7 @@ func (c *LRU) PurgeWithPrefix(prefix interface{}) {
 
 // KeysWithPrefix gets all the keys with the given prefix.
 // Type of prefix can be string or int64.
-func (c *LRU) KeysWithPrefix(prefix interface{}) []string {
+func (c *LRU) KeysWithPrefix(prefix any) []string {
 	var keys []string
 	for _, k := range c.instance.Keys(false) {
 		if strings.HasPrefix(fmt.Sprintf("%v", k), fmt.Sprintf("/%v/", prefix)) {
@@ -138,4 +123,24 @@ func (c *LRU) KeysWithPrefix(prefix interface{}) []string {
 		}
 	}
 	return keys
+}
+
+// CacheStats represents the stats of the LRU cache.
+type CacheStats struct {
+	Size        int     `json:"size"`
+	HitCount    uint64  `json:"hitCount"`
+	HitRate     float64 `json:"hitRate"`
+	MissCount   uint64  `json:"missCount"`
+	LookupCount uint64  `json:"lookupCount"`
+}
+
+// GetStats returns the stats of the LRU cache.
+func (c *LRU) GetStats() *CacheStats {
+	return &CacheStats{
+		Size:        c.instance.Len(true),
+		HitCount:    c.instance.HitCount(),
+		HitRate:     c.instance.HitRate(),
+		MissCount:   c.instance.MissCount(),
+		LookupCount: c.instance.LookupCount(),
+	}
 }

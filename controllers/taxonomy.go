@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"math"
 	"net/http"
-	"strconv"
 
 	"koushoku/server"
 	"koushoku/services"
@@ -26,16 +25,19 @@ func Artist(c *server.Context) {
 		return
 	}
 
-	page, _ := strconv.Atoi(c.Query("page"))
-	opts := services.GetArchivesOptions{
-		Artists: []string{artist.Name},
-		Limit:   indexLimit,
-		Offset:  indexLimit * (page - 1),
+	q := createNewSearchQueries(c)
+	opts := &services.GetArchivesOptions{
+		ArtistsMatch: []string{artist.Name},
+		Limit:        indexLimit,
+		Offset:       indexLimit * (q.Page - 1),
 		Preloads: []string{
 			services.ArchiveRels.Artists,
 			services.ArchiveRels.Circles,
 			services.ArchiveRels.Magazines,
 		},
+
+		Sort:  q.Sort,
+		Order: q.Order,
 	}
 
 	result := services.GetArchives(opts)
@@ -45,9 +47,9 @@ func Artist(c *server.Context) {
 		return
 	}
 
-	c.SetData("page", page)
-	if page > 0 {
-		c.SetData("name", fmt.Sprintf("%s: Page %d", artist.Name, page))
+	c.SetData("queries", q)
+	if q.Page > 0 {
+		c.SetData("name", fmt.Sprintf("%s: Page %d", artist.Name, q.Page))
 	} else {
 		c.SetData("name", artist.Name)
 	}
@@ -57,7 +59,7 @@ func Artist(c *server.Context) {
 	c.SetData("total", result.Total)
 
 	totalPages := int(math.Ceil(float64(result.Total) / float64(indexLimit)))
-	c.SetData("pagination", services.CreatePagination(page, totalPages))
+	c.SetData("pagination", services.CreatePagination(q.Page, totalPages))
 
 	c.Cache(http.StatusOK, taxonomyTemplate)
 }
@@ -74,16 +76,19 @@ func Circle(c *server.Context) {
 		return
 	}
 
-	page, _ := strconv.Atoi(c.Query("page"))
-	opts := services.GetArchivesOptions{
-		Circles: []string{circle.Name},
-		Limit:   indexLimit,
-		Offset:  indexLimit * (page - 1),
+	q := createNewSearchQueries(c)
+	opts := &services.GetArchivesOptions{
+		CirclesMatch: []string{circle.Name},
+		Limit:        indexLimit,
+		Offset:       indexLimit * (q.Page - 1),
 		Preloads: []string{
 			services.ArchiveRels.Artists,
 			services.ArchiveRels.Circles,
 			services.ArchiveRels.Magazines,
 		},
+
+		Sort:  q.Sort,
+		Order: q.Order,
 	}
 
 	result := services.GetArchives(opts)
@@ -93,9 +98,9 @@ func Circle(c *server.Context) {
 		return
 	}
 
-	c.SetData("page", page)
-	if page > 0 {
-		c.SetData("name", fmt.Sprintf("%s: Page %d", circle.Name, page))
+	c.SetData("queries", q)
+	if q.Page > 0 {
+		c.SetData("name", fmt.Sprintf("%s: Page %d", circle.Name, q.Page))
 	} else {
 		c.SetData("name", circle.Name)
 	}
@@ -105,7 +110,7 @@ func Circle(c *server.Context) {
 	c.SetData("total", result.Total)
 
 	totalPages := int(math.Ceil(float64(result.Total) / float64(indexLimit)))
-	c.SetData("pagination", services.CreatePagination(page, totalPages))
+	c.SetData("pagination", services.CreatePagination(q.Page, totalPages))
 
 	c.Cache(http.StatusOK, taxonomyTemplate)
 }
@@ -122,16 +127,19 @@ func Magazine(c *server.Context) {
 		return
 	}
 
-	page, _ := strconv.Atoi(c.Query("page"))
-	opts := services.GetArchivesOptions{
-		Magazines: []string{magazine.Name},
-		Limit:     indexLimit,
-		Offset:    indexLimit * (page - 1),
+	q := createNewSearchQueries(c)
+	opts := &services.GetArchivesOptions{
+		MagazinesMatch: []string{magazine.Name},
+		Limit:          indexLimit,
+		Offset:         indexLimit * (q.Page - 1),
 		Preloads: []string{
 			services.ArchiveRels.Artists,
 			services.ArchiveRels.Circles,
 			services.ArchiveRels.Magazines,
 		},
+
+		Sort:  q.Sort,
+		Order: q.Order,
 	}
 
 	result := services.GetArchives(opts)
@@ -141,9 +149,9 @@ func Magazine(c *server.Context) {
 		return
 	}
 
-	c.SetData("page", page)
-	if page > 0 {
-		c.SetData("name", fmt.Sprintf("%s: Page %d", magazine.Name, page))
+	c.SetData("queries", q)
+	if q.Page > 0 {
+		c.SetData("name", fmt.Sprintf("%s: Page %d", magazine.Name, q.Page))
 	} else {
 		c.SetData("name", magazine.Name)
 	}
@@ -153,7 +161,7 @@ func Magazine(c *server.Context) {
 	c.SetData("total", result.Total)
 
 	totalPages := int(math.Ceil(float64(result.Total) / float64(indexLimit)))
-	c.SetData("pagination", services.CreatePagination(page, totalPages))
+	c.SetData("pagination", services.CreatePagination(q.Page, totalPages))
 
 	c.Cache(http.StatusOK, taxonomyTemplate)
 }
@@ -170,16 +178,19 @@ func Parody(c *server.Context) {
 		return
 	}
 
-	page, _ := strconv.Atoi(c.Query("page"))
-	opts := services.GetArchivesOptions{
-		Parodies: []string{parody.Name},
-		Limit:    indexLimit,
-		Offset:   indexLimit * (page - 1),
+	q := createNewSearchQueries(c)
+	opts := &services.GetArchivesOptions{
+		ParodiesMatch: []string{parody.Name},
+		Limit:         indexLimit,
+		Offset:        indexLimit * (q.Page - 1),
 		Preloads: []string{
 			services.ArchiveRels.Artists,
 			services.ArchiveRels.Circles,
 			services.ArchiveRels.Magazines,
 		},
+
+		Sort:  q.Sort,
+		Order: q.Order,
 	}
 
 	result := services.GetArchives(opts)
@@ -189,9 +200,9 @@ func Parody(c *server.Context) {
 		return
 	}
 
-	c.SetData("page", page)
-	if page > 0 {
-		c.SetData("name", fmt.Sprintf("%s: Page %d", parody.Name, page))
+	c.SetData("queries", q)
+	if q.Page > 0 {
+		c.SetData("name", fmt.Sprintf("%s: Page %d", parody.Name, q.Page))
 	} else {
 		c.SetData("name", parody.Name)
 	}
@@ -201,7 +212,7 @@ func Parody(c *server.Context) {
 	c.SetData("total", result.Total)
 
 	totalPages := int(math.Ceil(float64(result.Total) / float64(indexLimit)))
-	c.SetData("pagination", services.CreatePagination(page, totalPages))
+	c.SetData("pagination", services.CreatePagination(q.Page, totalPages))
 
 	c.Cache(http.StatusOK, taxonomyTemplate)
 }
@@ -218,16 +229,19 @@ func Tag(c *server.Context) {
 		return
 	}
 
-	page, _ := strconv.Atoi(c.Query("page"))
-	opts := services.GetArchivesOptions{
-		Tags:   []string{tag.Name},
-		Limit:  indexLimit,
-		Offset: indexLimit * (page - 1),
+	q := createNewSearchQueries(c)
+	opts := &services.GetArchivesOptions{
+		TagsMatch: []string{tag.Name},
+		Limit:     indexLimit,
+		Offset:    indexLimit * (q.Page - 1),
 		Preloads: []string{
 			services.ArchiveRels.Artists,
 			services.ArchiveRels.Circles,
 			services.ArchiveRels.Magazines,
 		},
+
+		Sort:  q.Sort,
+		Order: q.Order,
 	}
 
 	result := services.GetArchives(opts)
@@ -237,9 +251,9 @@ func Tag(c *server.Context) {
 		return
 	}
 
-	c.SetData("page", page)
-	if page > 0 {
-		c.SetData("name", fmt.Sprintf("%s: Page %d", tag.Name, page))
+	c.SetData("queries", q)
+	if q.Page > 0 {
+		c.SetData("name", fmt.Sprintf("%s: Page %d", tag.Name, q.Page))
 	} else {
 		c.SetData("name", tag.Name)
 	}
@@ -249,7 +263,7 @@ func Tag(c *server.Context) {
 	c.SetData("total", result.Total)
 
 	totalPages := int(math.Ceil(float64(result.Total) / float64(indexLimit)))
-	c.SetData("pagination", services.CreatePagination(page, totalPages))
+	c.SetData("pagination", services.CreatePagination(q.Page, totalPages))
 
 	c.Cache(http.StatusOK, taxonomyTemplate)
 }

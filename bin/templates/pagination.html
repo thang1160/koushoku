@@ -23,9 +23,17 @@
               </svg>
             </a>
           </li>
+          {{ $nextPage := inc $currentPage }}
           {{- range .pagination.Pages }}
             <li>
-              <a {{ if eq $currentPage . }}class="active"{{ end }} href="{{ setQuery $query "page" . }}">
+              <a
+                {{- if eq $currentPage . }}
+                  class="active"
+                {{- else if eq $nextPage . }}
+                  class="next"
+                {{- end }}
+                href="{{ setQuery $query "page" . }}"
+              >
                 <strong>{{ . }}</strong>
               </a>
             </li>

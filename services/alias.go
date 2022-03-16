@@ -10,25 +10,25 @@ import (
 	. "koushoku/config"
 )
 
-var alias struct {
-	Archives  map[string]string
-	Artists   map[string]string
-	Circles   map[string]string
-	Magazines map[string]string
-	Parodies  map[string]string
-	Tags      map[string]string
+var aliases struct {
+	ArchiveMatches  map[string]string
+	ArtistMatches   map[string]string
+	CircleMatches   map[string]string
+	MagazineMatches map[string]string
+	ParodyMatches   map[string]string
+	TagMatches      map[string]string
 
 	once sync.Once
 }
 
-func initAlias() {
-	alias.once.Do(func() {
-		alias.Archives = make(map[string]string)
-		alias.Artists = make(map[string]string)
-		alias.Circles = make(map[string]string)
-		alias.Magazines = make(map[string]string)
-		alias.Parodies = make(map[string]string)
-		alias.Tags = make(map[string]string)
+func loadAliases() {
+	aliases.once.Do(func() {
+		aliases.ArchiveMatches = make(map[string]string)
+		aliases.ArtistMatches = make(map[string]string)
+		aliases.CircleMatches = make(map[string]string)
+		aliases.MagazineMatches = make(map[string]string)
+		aliases.ParodyMatches = make(map[string]string)
+		aliases.TagMatches = make(map[string]string)
 
 		stat, err := os.Stat(Config.Paths.Alias)
 		if os.IsNotExist(err) || stat.IsDir() {
@@ -51,27 +51,27 @@ func initAlias() {
 				continue
 			}
 
-			arr := strings.Split(strings.ToLower(line), ":")
-			if len(arr) < 3 {
+			strs := strings.Split(strings.ToLower(line), ":")
+			if len(strs) < 3 {
 				continue
 			}
 
-			k := slugify(arr[1])
-			v := strings.TrimSpace(strings.Join(arr[2:], ":"))
+			k := Slugify(strs[1])
+			v := strings.TrimSpace(strings.Join(strs[2:], ":"))
 
-			switch strings.TrimSpace(arr[0]) {
-			case "artist":
-				alias.Artists[k] = v
+			switch strings.TrimSpace(strs[0]) {
 			case "title":
-				alias.Archives[k] = v
+				aliases.ArchiveMatches[k] = v
+			case "artist":
+				aliases.ArtistMatches[k] = v
 			case "circle":
-				alias.Circles[k] = v
+				aliases.CircleMatches[k] = v
 			case "magazine":
-				alias.Magazines[k] = v
+				aliases.MagazineMatches[k] = v
 			case "parody":
-				alias.Parodies[k] = v
+				aliases.ParodyMatches[k] = v
 			case "tag":
-				alias.Tags[k] = v
+				aliases.TagMatches[k] = v
 			}
 		}
 

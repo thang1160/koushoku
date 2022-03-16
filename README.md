@@ -4,7 +4,7 @@ Source code of site [redacted] for those who are willing to run their own instan
 
 ### How it serve and index the archives
 
-Archives and its files are served directly, without writing the files inside the archives into the disk (except for thumbnails). Archives inside the specified data directory will be indexed as long as it follows the following naming formats:
+Archives and its files are served directly, without writing the files inside the archives into the disk (except for thumbnails). Archives inside the specified data directory will be indexed as long as it follows one of the following naming formats:
 
 - [Artist] Title (Magazine) [Foo] [Bar] [Crap] {tags kebab-case optional}
 - [Circle (Artist)] Title (Magazine) [Foo] [Bar] [Crap] {tags kebab-case optional}
@@ -14,10 +14,8 @@ Archives will be indexed concurrently, and usually takes several minutes (~1m10s
 ## Prerequisites
 
 - Git
-- Go 1.17+
-- libvips 8.3+ (8.8+ recommended)
-- C compatible compiler such as gcc 4.6+ or clang 3.0+
-- PostgreSQL
+- Go 1.18+
+- ImageMagick
 
 ## Setup
 
@@ -26,17 +24,14 @@ Archives will be indexed concurrently, and usually takes several minutes (~1m10s
 ```sh
 # Arch-based distributions
 sudo pacman -Syu
-sudo pacman -S git go libvips postgresql
+sudo pacman -S git go imagemagick postgresql
 
 # Debian-based distributions
 sudo apt-get install -y software-properties-common
-sudo add-apt-repository -y ppa:strukturag/libde265
-sudo add-apt-repository -y ppa:strukturag/libheif
-sudo add-apt-repository -y ppa:tonimelisma/ppa
 sudo add-apt-repository -y ppa:longsleep/golang-backports
 
 sudo apt-get update -y
-sudo apt-get install -y build-essential git golang-go libvips-dev postgresql
+sudo apt-get install -y build-essential git golang-go postgresql imagemagick
 ```
 
 ### Initialize database cluster

@@ -1,10 +1,16 @@
 {{- define "feed" }}
+  {{- $dataBaseURL := .dataBaseURL }}
   <div class="entries">
     {{- range .archives }}
       <article class="entry">
         <a href="/archive/{{ .ID }}/{{ .Slug }}" title="{{ .Title }}">
           <figure class="thumbnail">
-            <img alt="Thumbnail for {{ .Title }}" title="{{ .Title }}" src="/data/{{ .ID }}/1/384.jpg" loading="lazy" />
+            <img
+              alt="Thumbnail for {{ .Title }}"
+              title="{{ .Title }}"
+              src="{{ $dataBaseURL }}/data/{{ .ID }}/1/288.webp"
+              loading="lazy"
+            />
             <div class="metadata">
               {{- if .Magazines }}
                 {{- $magazine := (index .Magazines 0) }}

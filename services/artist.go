@@ -5,10 +5,8 @@ import (
 	"database/sql"
 	"log"
 	"strings"
-	"time"
 
-	. "koushoku/cache"
-
+	"koushoku/cache"
 	"koushoku/errs"
 	"koushoku/models"
 	"koushoku/modext"
@@ -21,26 +19,22 @@ import (
 func CreateArtist(name string) (*modext.Artist, error) {
 	name = strings.Title(strings.TrimSpace(name))
 	if len(name) == 0 {
-		return nil, errs.ErrArtistNameRequired
+		return nil, errs.ArtistNameRequired
 	} else if len(name) > 128 {
-		return nil, errs.ErrArtistNameTooLong
+		return nil, errs.ArtistNameTooLong
 	}
 
-	slug := slugify(name)
-
+	slug := Slugify(name)
 	artist, err := models.Artists(Where("slug = ?", slug)).OneG()
 	if err == sql.ErrNoRows {
-		artist = &models.Artist{
-			Name: name,
-			Slug: slug,
-		}
+		artist = &models.Artist{Name: name, Slug: slug}
 		if err = artist.InsertG(boil.Infer()); err != nil {
 			log.Println(err)
-			return nil, errs.ErrUnknown
+			return nil, errs.Unknown
 		}
 	} else if err != nil {
 		log.Println(err)
-		return nil, errs.ErrUnknown
+		return nil, errs.Unknown
 	}
 
 	return modext.NewArtist(artist), nil
@@ -50,10 +44,10 @@ func GetArtist(slug string) (*modext.Artist, error) {
 	artist, err := models.Artists(Where("slug = ?", slug)).OneG()
 	if err != nil {
 		if err == sql.ErrNoRows {
-			return nil, errs.ErrArtistNotFound
+			return nil, errs.ArtistNotFound
 		}
 		log.Println(err)
-		return nil, errs.ErrUnknown
+		return nil, errs.Unknown
 	}
 	return modext.NewArtist(artist), nil
 }
@@ -69,31 +63,28 @@ type GetArtistsResult struct {
 	Err     error
 }
 
-const prefixgart = "artists"
-
 func GetArtists(opts GetArtistsOptions) (result *GetArtistsResult) {
-	if opts.Offset < 0 {
-		opts.Offset = 0
-	}
+	opts.Limit = Max(opts.Limit, 0)
+	opts.Offset = Max(opts.Offset, 0)
 
+	const prefix = "artists"
 	cacheKey := makeCacheKey(opts)
-	if c, err := Cache.GetWithPrefix(prefixgart, cacheKey); err == nil {
+	if c, err := cache.Taxonomies.GetWithPrefix(prefix, cacheKey); err == nil {
 		return c.(*GetArtistsResult)
 	}
 
 	result = &GetArtistsResult{Artists: []*modext.Artist{}}
 	defer func() {
 		if len(result.Artists) > 0 || result.Total > 0 || result.Err != nil {
-			Cache.RemoveWithPrefix(prefixgart, cacheKey)
-			Cache.SetWithPrefix(prefixgart, cacheKey, result, time.Hour*24*7)
+			cache.Taxonomies.RemoveWithPrefix(prefix, cacheKey)
+			cache.Taxonomies.SetWithPrefix(prefix, cacheKey, result, 0)
 		}
 	}()
 
 	q := []QueryMod{
 		Select("artist.*", "COUNT(archive.artist_id) AS archive_count"),
 		InnerJoin("archive_artists archive ON archive.artist_id = artist.id"),
-		GroupBy("artist.id"),
-		OrderBy("artist.name ASC"),
+		GroupBy("artist.id"), OrderBy("artist.name ASC"),
 	}
 
 	if opts.Limit > 0 {
@@ -106,14 +97,14 @@ func GetArtists(opts GetArtistsOptions) (result *GetArtistsResult) {
 	err := models.Artists(q...).BindG(context.Background(), &result.Artists)
 	if err != nil {
 		log.Println(err)
-		result.Err = errs.ErrUnknown
+		result.Err = errs.Unknown
 		return
 	}
 
 	count, err := models.Artists().CountG()
 	if err != nil {
 		log.Println(err)
-		result.Err = errs.ErrUnknown
+		result.Err = errs.Unknown
 		return
 	}
 
@@ -122,32 +113,26 @@ func GetArtists(opts GetArtistsOptions) (result *GetArtistsResult) {
 }
 
 func GetArtistCount() (int64, error) {
-	if c, err := Cache.Get("artist-count"); err == nil {
+	const cachekey = "artistCount"
+	if c, err := cache.Taxonomies.Get(cachekey); err == nil {
 		return c.(int64), nil
 	}
 
 	count, err := models.Artists().CountG()
 	if err != nil {
 		log.Println(err)
-		return 0, errs.ErrUnknown
+		return 0, errs.Unknown
 	}
 
-	Cache.Set("artist-count", count, time.Hour*24*7)
+	cache.Taxonomies.Set(cachekey, count, 0)
 	return count, nil
 }
 
-var isArtistValidMap = QueryMapCache{
-	Map: make(map[string]bool),
-}
+var artistIndexes = IndexMap{Cache: make(map[string]bool)}
 
 func IsArtistValid(str string) (isValid bool) {
-	str = slugify(str)
-
-	isArtistValidMap.RLock()
-	v, ok := isArtistValidMap.Map[str]
-	isArtistValidMap.RUnlock()
-
-	if ok {
+	str = Slugify(str)
+	if v, ok := artistIndexes.Get(str); ok {
 		return v
 	}
 
@@ -156,12 +141,7 @@ func IsArtistValid(str string) (isValid bool) {
 		return
 	}
 
-	defer func() {
-		isArtistValidMap.Lock()
-		isArtistValidMap.Map[str] = isValid
-		isArtistValidMap.Unlock()
-	}()
-
+	defer artistIndexes.Add(str, isValid)
 	for _, artist := range result.Artists {
 		if artist.Slug == str {
 			isValid = true

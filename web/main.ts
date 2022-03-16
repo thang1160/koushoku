@@ -7,9 +7,11 @@ interface PageState {
 }
 
 const pages: PageState[] = [];
+const maxPreloads = 3;
 
 let id: string;
 let slug: string;
+let origin: string;
 
 const initPreload = () => {
   const currentIndex = pages.findIndex(e => e.isViewing);
@@ -19,15 +21,15 @@ const initPreload = () => {
     if (
       page.isPreloading ||
       page.isPreloaded ||
-      i < Math.max(0, currentIndex - 3) ||
-      i > Math.max(0, currentIndex + 3)
+      i < Math.max(0, currentIndex - maxPreloads) ||
+      i > Math.min(pages.length, currentIndex + maxPreloads)
     ) {
       continue;
     }
     page.isPreloading = true;
 
     const img = document.createElement("img");
-    img.src = `/data/${id}/${i + 1}.jpg`;
+    img.src = `${origin}/data/${id}/${i + 1}.jpg`;
 
     const onComplete = () => {
       page.isPreloading = false;
@@ -62,6 +64,7 @@ const initReader = () => {
 
   const page = reader.querySelector(".page a") as HTMLAnchorElement;
   let img = page.querySelector("img");
+  ({ origin } = new URL(img.src));
 
   const mutex = { current: false };
   const rect = page.getBoundingClientRect();
@@ -80,7 +83,8 @@ const initReader = () => {
       page.href = `/archive/${id}/${slug}/${current}`;
 
       const newImg = document.createElement("img");
-      newImg.src = `/data/${id}/${current}.jpg`;
+      newImg.src = `${origin}/data/${id}/${current}.jpg`;
+
       img.replaceWith(newImg);
       img = newImg;
 
@@ -193,7 +197,11 @@ const initReader = () => {
 
 const init = () => {
   if ("serviceWorker" in navigator) {
-    navigator.serviceWorker.register("/serviceWorker.js");
+    navigator.serviceWorker.getRegistrations().then(registrations => {
+      for (let i = 0; i < registrations.length; i++) {
+        registrations[i].unregister();
+      }
+    });
   }
   initReader();
 };

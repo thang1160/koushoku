@@ -60,10 +60,10 @@ CREATE TABLE IF NOT EXISTS archive (
 CREATE UNIQUE INDEX IF NOT EXISTS archive_path_uindex ON archive(path);
 CREATE INDEX IF NOT EXISTS archive_title_index ON archive(title);
 CREATE INDEX IF NOT EXISTS archive_slug_index ON archive(slug);
+CREATE INDEX IF NOT EXISTS archive_pages_index ON archive(pages);
 CREATE INDEX IF NOT EXISTS archive_created_at_index ON archive(created_at);
 CREATE INDEX IF NOT EXISTS archive_updated_at_index ON archive(updated_at);
 CREATE INDEX IF NOT EXISTS archive_published_at_index ON archive(published_at);
-CREATE INDEX IF NOT EXISTS archive_title_index ON archive(title);
 
 CREATE TABLE IF NOT EXISTS archive_artists (
   archive_id BIGINT NOT NULL DEFAULT NULL REFERENCES archive(id) ON DELETE CASCADE,
@@ -109,3 +109,36 @@ CREATE TABLE IF NOT EXISTS archive_tags (
 
 CREATE INDEX IF NOT EXISTS archive_tags_archive_id_index ON archive_tags(archive_id);
 CREATE INDEX IF NOT EXISTS archive_tags_tag_id_index ON archive_tags(tag_id);
+
+CREATE TABLE IF NOT EXISTS users (
+  id BIGSERIAL PRIMARY KEY,
+
+  created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
+  
+  email VARCHAR(256) NOT NULL DEFAULT NULL,
+  password varchar(2048) NOT NULL DEFAULT NULL,
+  name VARCHAR(32) NOT NULL DEFAULT NULL,
+  
+  is_banned BOOLEAN NOT NULL DEFAULT FALSE,
+  is_admin BOOLEAN NOT NULL DEFAULT FALSE
+);
+
+ALTER TABLE users
+  ADD COLUMN IF NOT EXISTS is_banned BOOLEAN NOT NULL DEFAULT FALSE,
+  ADD COLUMN IF NOT EXISTS is_admin BOOLEAN NOT NULL DEFAULT FALSE;
+
+CREATE UNIQUE INDEX IF NOT EXISTS users_email_uindex ON users(email);
+CREATE INDEX IF NOT EXISTS users_created_at_index ON users(created_at);
+CREATE INDEX IF NOT EXISTS users_updated_at_index ON users(updated_at);
+CREATE INDEX IF NOT EXISTS users_is_banned_index ON users(is_banned);
+CREATE INDEX IF NOT EXISTS users_is_admin_index ON users(is_admin);
+
+CREATE TABLE IF NOT EXISTS user_favorites (
+  user_id BIGINT NOT NULL DEFAULT NULL REFERENCES users(id) ON DELETE CASCADE,
+  archive_id BIGINT NOT NULL DEFAULT NULL REFERENCES archive(id) ON DELETE CASCADE,
+  PRIMARY KEY(user_id, archive_id)
+);
+
+CREATE INDEX IF NOT EXISTS user_favorites_user_id_index ON user_favorites(user_id);
+CREATE INDEX IF NOT EXISTS user_favorites_archive_id_index ON user_favorites(archive_id);

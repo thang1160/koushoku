@@ -20,6 +20,7 @@ contrib/nginx/*.conf
 *.service
 
 bin/*
+bin/app.webmanifest
 bin/assets/**/*.development.*
 bin/templates/about.html
 bin/assets/favicon.ico

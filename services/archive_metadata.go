@@ -554,7 +554,12 @@ func scrapeI(fn, fnSlug string, model *models.Archive) (ok bool) {
 		path = fmt.Sprintf("/%s/%s", model.R.Artists[0].Slug, model.Slug)
 	}
 
-	res, err := sendRequest(iBaseURL + path)
+	u := path
+	if !strings.HasPrefix(u, "http") {
+		u = iBaseURL + path
+	}
+
+	res, err := sendRequest(u)
 	if err != nil {
 		log.Fatalln(err)
 	}

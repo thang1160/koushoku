@@ -237,6 +237,7 @@ type GetArchivesOptions struct {
 	Preloads []string `json:"40,omitempty"`
 	Sort     string   `json:"41,omitempty"`
 	Order    string   `json:"42,omitempty"`
+	All      bool     `json:"43,omitempty"`
 }
 
 const (
@@ -284,9 +285,11 @@ func (opts *GetArchivesOptions) Validate() {
 	opts.ExcludedTagsMatch = SlugifyStrings(opts.ExcludedTagsMatch)
 	opts.ExcludedTagsWildcard = SlugifyStrings(opts.ExcludedTagsWildcard)
 
-	opts.Limit = Max(opts.Limit, 0)
-	opts.Limit = Min(opts.Limit, 100)
-	opts.Offset = Max(opts.Offset, 0)
+	if !opts.All {
+		opts.Limit = Max(opts.Limit, 0)
+		opts.Limit = Min(opts.Limit, 100)
+		opts.Offset = Max(opts.Offset, 0)
+	}
 
 	opts.Preloads = validateRels(opts.Preloads)
 	if strings.EqualFold(opts.Sort, ArchiveCols.ID) {
@@ -581,9 +584,15 @@ func (opts *GetArchivesOptions) ToQueries() (selectMods, countMods []QueryMod) {
 	selectMods = append(selectMods, Where("archive.published_at IS NOT NULL"))
 	countMods = append(countMods, selectMods...)
 
-	selectMods = append(selectMods,
-		OrderBy(fmt.Sprintf("%s %s", opts.Sort, opts.Order)),
-		Limit(opts.Limit), Offset(opts.Offset))
+	selectMods = append(selectMods, OrderBy(fmt.Sprintf("%s %s", opts.Sort, opts.Order)))
+
+	if opts.Limit > 0 {
+		selectMods = append(selectMods, Limit(opts.Limit))
+	}
+
+	if opts.Offset > 0 {
+		selectMods = append(selectMods, Offset(opts.Offset))
+	}
 
 	for _, v := range opts.Preloads {
 		selectMods = append(selectMods, Load(v))

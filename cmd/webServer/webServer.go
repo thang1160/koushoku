@@ -96,6 +96,8 @@ func main() {
 	server.GET("/tags", controllers.Tags)
 	server.GET("/tags/:slug", controllers.Tag)
 
+	server.GET("/sitemap.xml", controllers.Sitemap)
+
 	server.NoRoute(func(c *server.Context) {
 		c.HTML(http.StatusNotFound, "error.html")
 	})

@@ -2,7 +2,6 @@ package server
 
 import (
 	"fmt"
-	"html/template"
 	"math"
 	"net/url"
 	"strings"
@@ -12,7 +11,7 @@ import (
 	"koushoku/services"
 )
 
-var helper = template.FuncMap{
+var helper = map[string]any{
 	"baseURL": func() string {
 		return Config.Meta.BaseURL
 	},

@@ -1,9 +1,11 @@
 package server
 
 import (
+	html "html/template"
+	text "text/template"
+
 	"bytes"
 	"fmt"
-	"html/template"
 	"io/fs"
 	"log"
 	"net/http"
@@ -25,10 +27,14 @@ type RenderOptions struct {
 	Status int
 }
 
-const htmlContentType = "text/html; charset=utf-8"
+const (
+	htmlContentType = "text/html; charset=utf-8"
+	xmlContentType  = "application/xml; charset=utf-8"
+)
 
 var (
-	templates           *template.Template
+	htmlTemplates       *html.Template
+	xmlTemplates        *text.Template
 	mu                  sync.Mutex
 	ErrTemplateNotFound = errors.New("Template not found")
 )
@@ -37,33 +43,75 @@ func LoadTemplates() {
 	mu.Lock()
 	defer mu.Unlock()
 
-	var files []string
+	var htmlFiles, xmlFiles []string
 	err := filepath.Walk(filepath.Join(Config.Directories.Templates),
 		func(path string, stat fs.FileInfo, err error) error {
-			if err != nil || stat.IsDir() || !strings.HasSuffix(path, ".html") {
+			if err != nil || stat.IsDir() {
 				return err
 			}
-			files = append(files, path)
+
+			if strings.HasSuffix(path, ".html") {
+				htmlFiles = append(htmlFiles, path)
+			} else {
+				xmlFiles = append(xmlFiles, path)
+			}
+
 			return nil
 		})
 	if err != nil {
 		log.Fatalln(err)
 	}
 
-	templates, err = template.New("").Funcs(helper).ParseFiles(files...)
-	if err != nil {
-		log.Fatalln(err)
+	if len(htmlFiles) > 0 {
+		htmlTemplates, err = html.New("").Funcs(helper).ParseFiles(htmlFiles...)
+		if err != nil {
+			log.Fatalln(err)
+		}
+	}
+
+	if len(xmlFiles) > 0 {
+		xmlTemplates, err = text.New("").Funcs(helper).ParseFiles(xmlFiles...)
+		if err != nil {
+			log.Fatalln(err)
+		}
 	}
 }
 
 func parseTemplate(name string, data any) ([]byte, error) {
+	if strings.HasSuffix(name, ".html") {
+		return parseHtmlTemplate(name, data)
+	}
+	return parseXmlTemplate(name, data)
+}
+
+func parseHtmlTemplate(name string, data any) ([]byte, error) {
 	if gin.Mode() == gin.DebugMode {
 		LoadTemplates()
 	}
 
-	t := templates.Lookup(name)
+	t := htmlTemplates.Lookup(name)
 	if t == nil {
 		return nil, ErrTemplateNotFound
+
+	}
+
+	var buf bytes.Buffer
+	if err := t.Execute(&buf, data); err != nil {
+		log.Println(err)
+		return nil, err
+	}
+	return buf.Bytes(), nil
+}
+
+func parseXmlTemplate(name string, data any) ([]byte, error) {
+	if gin.Mode() == gin.DebugMode {
+		LoadTemplates()
+	}
+
+	t := xmlTemplates.Lookup(name)
+	if t == nil {
+		return nil, ErrTemplateNotFound
+
 	}
 
 	var buf bytes.Buffer
@@ -119,5 +167,10 @@ func renderTemplate(c *Context, opts *RenderOptions) {
 	} else {
 		buf, _ = parseTemplate(opts.Name, opts.Data)
 	}
-	c.Data(opts.Status, htmlContentType, buf)
+
+	contentType := htmlContentType
+	if strings.HasSuffix(opts.Name, ".xml") {
+		contentType = xmlContentType
+	}
+	c.Data(opts.Status, contentType, buf)
 }

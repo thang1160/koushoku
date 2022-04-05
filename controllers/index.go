@@ -13,9 +13,10 @@ import (
 )
 
 const (
-	indexLimit         = 25
-	indexTemplateName  = "index.html"
-	searchTemplateName = "search.html"
+	indexLimit          = 25
+	indexTemplateName   = "index.html"
+	searchTemplateName  = "search.html"
+	sitemapTemplateName = "sitemap.xml"
 )
 
 type SearchQueries struct {
@@ -316,4 +317,19 @@ func Search(c *server.Context) {
 	} else {
 		c.Cache(http.StatusNotFound, searchTemplateName)
 	}
+}
+
+func Sitemap(c *server.Context) {
+	if c.TryCache(sitemapTemplateName) {
+		return
+	}
+
+	result := services.GetArchives(&services.GetArchivesOptions{Order: "published_at", All: true})
+	if result.Err != nil {
+		c.ErrorJSON(http.StatusInternalServerError, "Failed to get archives", result.Err)
+		return
+	}
+
+	c.SetData("archives", result.Archives)
+	c.Cache(http.StatusOK, sitemapTemplateName)
 }

@@ -72,6 +72,9 @@ func main() {
 	assets.StaticFile("/android-chrome-512x512.png", filepath.Join(Config.Directories.Root, "android-chrome-512x512.png"))
 
 	server.GET("/", controllers.Index)
+	server.GET("/about",
+		server.WithName("About"),
+		controllers.About)
 	server.GET("/search", controllers.Search)
 	server.GET("/stats",
 		server.WithName("Stats"),

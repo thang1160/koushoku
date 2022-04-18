@@ -1,0 +1,51 @@
+{{- define "about.html" }}
+  <!DOCTYPE html>
+  <html lang="{{ language }}">
+    {{- template "head" . }}
+    <body>
+      {{- template "header" . }}
+      <main id="about">
+        <h2>About</h2>
+        <p>
+          Koushoku is a one-stop shop for english-translated licensed hentai manga and doujins. Content on this website
+          is obtained from "public" sources such as Sukebei and Chaika, and some are provided by the community.
+        </p>
+        <p>
+          <small
+            ><em
+              >Credits to all uploaders on Sukebei and Chaika, as well those who upload and/or submit to this
+              website.</em
+            ></small
+          >
+        </p>
+        <p>
+          You're free to do anything you want to every content on this website. There are no limitations on scraping and
+          downloading, as long as you don't put a pressure on to the server. In other words, don't ruin everyone's fun
+          for your own selfish needs.
+        </p>
+        <p>
+          This website will never show you ads under any circumstances. This website is a "hobby" project, and is
+          sustained by my own pocket money a.k.a "doing it for free" a.k.a $0/h. The longevity of this website depends
+          on whether or not I, the VPS provider or the domain registrar could avoid legal troubles (e.g., subpoena).
+          This website is using Google Analytics to collect page views, but you can use uBlock Origin or Privacy Badger
+          to block it.
+        </p>
+        <p>
+          The source code of this website is available on GitHub under the GPLv3 license, so if this website is taken
+          down, hopefully some kind anon out there will take the torch. This website is also available on Tachiyomi, but
+          navigating and searching might be sucks because I couldn't care less about it.
+        </p>
+        <p>Questions and stuff: koushoku-dev at protonmail.com</p>
+        <p>
+          <small
+            ><em
+              >P.S: Would be nice if you don't share this website publicly, but well whatever, just keep it to the
+              minimum.</em
+            ></small
+          >
+        </p>
+      </main>
+      {{- template "footer" . }}
+    </body>
+  </html>
+{{- end }}

@@ -324,12 +324,33 @@ func Sitemap(c *server.Context) {
 		return
 	}
 
-	result := services.GetArchives(&services.GetArchivesOptions{Order: "published_at", All: true})
-	if result.Err != nil {
-		c.ErrorJSON(http.StatusInternalServerError, "Failed to get archives", result.Err)
+	archives := services.GetArchives(&services.GetArchivesOptions{Order: "published_at", All: true})
+	if archives.Err != nil {
+		c.ErrorJSON(http.StatusInternalServerError, "Failed to get archives", archives.Err)
 		return
 	}
 
-	c.SetData("archives", result.Archives)
+	artists := services.GetArtists(services.GetArtistsOptions{Limit: 10000})
+	if artists.Err != nil {
+		c.ErrorJSON(http.StatusInternalServerError, "Failed to get artists", artists.Err)
+		return
+	}
+
+	magazines := services.GetMagazines(services.GetMagazinesOptions{Limit: 10000})
+	if magazines.Err != nil {
+		c.ErrorJSON(http.StatusInternalServerError, "Failed to get magazines", magazines.Err)
+		return
+	}
+
+	tags := services.GetTags(services.GetTagsOptions{Limit: 10000})
+	if tags.Err != nil {
+		c.ErrorJSON(http.StatusInternalServerError, "Failed to get tags", tags.Err)
+		return
+	}
+
+	c.SetData("archives", archives.Archives)
+	c.SetData("artists", artists.Artists)
+	c.SetData("magazines", magazines.Magazines)
+	c.SetData("tags", tags.Tags)
 	c.Cache(http.StatusOK, sitemapTemplateName)
 }

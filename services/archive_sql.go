@@ -127,7 +127,7 @@ const rawSqlTagsWildcard = `(
 	LEFT JOIN tag ON tag.id = archive_tags.tag_id	
 		AND archive_tags.archive_id = archive.id
 	WHERE tag.slug ILIKE '%' || ? || '%'
-) = 0`
+) > 0`
 
 const rawSqlExcludeTagsMatch = `(
 	SELECT COUNT(*) FROM archive_tags

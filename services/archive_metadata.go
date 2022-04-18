@@ -463,7 +463,7 @@ func scrapeF(fn, fnSlug string, model *models.Archive) (ok bool) {
 	// Parse tags
 	fields.Last().Children().First().Children().Each(func(i int, s *goquery.Selection) {
 		href, _ := s.Attr("href")
-		if i > 0 && len(href) > 0 {
+		if len(href) > 0 {
 			tag := strings.TrimSpace(s.Text())
 			if v, ok := aliases.TagMatches[Slugify(tag)]; ok {
 				tag = v

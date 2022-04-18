@@ -96,6 +96,13 @@ func main() {
 	server.GET("/tags", controllers.Tags)
 	server.GET("/tags/:slug", controllers.Tag)
 
+	server.GET("/submit", server.WithName("Submit"), controllers.Submit)
+	server.POST("/submit",
+		server.WithName("Submit"),
+		server.WithRateLimit("Submit?", "10-D"),
+		controllers.SubmitPost)
+	server.GET("/submissions", controllers.Submissions)
+
 	server.GET("/sitemap.xml", controllers.Sitemap)
 
 	server.NoRoute(func(c *server.Context) {

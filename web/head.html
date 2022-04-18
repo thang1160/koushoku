@@ -14,12 +14,12 @@
     {{- if .archive -}}
       {{- $title = .archive.Title -}}
       {{- if and .archive.Artists (eq (len .archive.Artists) 1) -}}
-        {{ $artist := (index .archive.Artists 0) -}}
+        {{- $artist := (index .archive.Artists 0) -}}
         {{- $title = printf "%s by %s" .archive.Title $artist.Name -}}
       {{- end -}}
     {{- end -}}
 
-    {{- $description := "Koushoku is the best source of free premium and uncensored hentai manga and doujinshi." -}}
+    {{- $description := "" -}}
     {{- if .archive -}}
       {{- $artists := "" -}}
       {{- range $i, $v := .archive.Artists -}}
@@ -36,6 +36,7 @@
         {{- end -}}
         {{- $tags = printf "%s %s" $tags .Name -}}
       {{- end -}}
+
       {{- if $tags -}}
         {{- $description = printf "Read or download %s by %s. %s." .archive.Title $artists $tags -}}
       {{- else -}}
@@ -44,16 +45,20 @@
     {{- end -}}
 
 
+    <meta name="application-name" content="Koushoku" />
     <meta name="theme-color" content="#0c0c0c" />
 
     <meta itemprop="name" content="{{ $title }}" />
     <meta property="og:title" content="{{ $title }}" />
     <meta property="twitter:title" content="{{ $title }}" />
 
-    <meta name="description" content="{{ $description }}" />
-    <meta itemprop="description" content="{{ $description }}" />
-    <meta property="og:description" content="{{ $description }}" />
-    <meta name="twitter:description" content="{{ $description }}" />
+    {{- if $description -}}
+      <meta name="description" content="{{ $description }}" />
+      <meta itemprop="description" content="{{ $description }}" />
+      <meta property="og:description" content="{{ $description }}" />
+      <meta name="twitter:description" content="{{ $description }}" />
+    {{- end -}}
+
 
     <meta property="og:site_name" content="{{ .title }}" />
     <meta property="og:url" content="{{ .url }}" />
@@ -67,7 +72,7 @@
     {{- $img := printf "%s/cover.jpg" .baseURL -}}
     {{- if .archive -}}
       <meta name="twitter:card" content="summary" />
-      {{ $img = printf "%s/data/%d/1/896.webp" .dataBaseURL .archive.ID -}}
+      {{- $img = printf "%s/data/%d/1/896.webp" .dataBaseURL .archive.ID -}}
     {{- else }}
       <meta name="twitter:card" content="summary_large_image" />
     {{- end -}}
@@ -86,8 +91,6 @@
     {{- end -}}
 
 
-    <meta name="application-name" content="Koushoku" />
-
     <link rel="icon" sizes="16x16" href="/favicon-16x16.png" />
     <link rel="icon" sizes="32x32" href="/favicon-32x32.png" />
     <link rel="icon" sizes="192x192" href="/android-chrome-192x192.png" />
@@ -95,5 +98,16 @@
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <link rel="manifest" href="/app.webmanifest" />
     <link rel="canonical" href="{{ .url }}" />
+
+    <!-- Global site tag (gtag.js) - Google Analytics -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-R3DS5B2EFW"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag() {
+        dataLayer.push(arguments);
+      }
+      gtag("js", new Date());
+      gtag("config", "G-R3DS5B2EFW");
+    </script>
   </head>
 {{- end }}

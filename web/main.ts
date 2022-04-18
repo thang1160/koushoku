@@ -50,8 +50,7 @@ const initReader = () => {
   const reader = document.getElementById("reader");
   if (!reader) return;
 
-  const arr = window.location.pathname.split("/");
-  [, , id, slug] = arr;
+  [, , id, slug] = window.location.pathname.split("/");
 
   const total = Number(document.querySelector(".total").textContent);
   const currentSpans = document.querySelectorAll(".current");
@@ -103,63 +102,49 @@ const initReader = () => {
     }
   };
 
+  const preventDefault = (ev: MouseEvent) => {
+    ev.preventDefault();
+    ev.stopPropagation();
+    ev.stopImmediatePropagation();
+  };
+
   first.forEach(e => {
     e.addEventListener("click", ev => {
-      ev.preventDefault();
-      ev.stopPropagation();
-      ev.stopImmediatePropagation();
-
-      if (current === 1) return;
-      changePage(1);
+      preventDefault(ev);
+      if (current > 1) changePage(1);
     });
   });
 
   last.forEach(e => {
     e.addEventListener("click", ev => {
-      ev.preventDefault();
-      ev.stopPropagation();
-      ev.stopImmediatePropagation();
-
-      if (current === total) return;
-      changePage(total);
+      preventDefault(ev);
+      if (current < total) changePage(total);
     });
   });
 
   prev.forEach(e => {
     e.addEventListener("click", ev => {
-      ev.preventDefault();
-      ev.stopPropagation();
-      ev.stopImmediatePropagation();
-
-      if (current === 1) return;
-      changePage(current - 1);
+      preventDefault(ev);
+      if (current > 1) changePage(current - 1);
     });
   });
 
   next.forEach(e => {
     e.addEventListener("click", ev => {
-      ev.preventDefault();
-      ev.stopPropagation();
-      ev.stopImmediatePropagation();
-
-      if (current === total) return;
-      changePage(current + 1);
+      preventDefault(ev);
+      if (current < total) changePage(current + 1);
     });
   });
 
   page.addEventListener("click", (ev: MouseEvent) => {
-    ev.preventDefault();
-    ev.stopPropagation();
-    ev.stopImmediatePropagation();
+    preventDefault(ev);
 
     const target = ev.target as HTMLAnchorElement;
     const isPrev = ev.screenX - rect.x <= target.clientWidth / 2;
 
     if (isPrev) {
-      if (current === 1) return;
-      changePage(current - 1);
-    } else {
-      if (current === total) return;
+      if (current > 1) changePage(current - 1);
+    } else if (current < total) {
       changePage(current + 1);
     }
   });
@@ -186,10 +171,8 @@ const initReader = () => {
 
   window.addEventListener("keydown", ev => {
     if (ev.code === "ArrowLeft" || ev.code === "KeyA" || ev.code === "KeyH") {
-      if (current === 1) return;
-      changePage(current - 1);
-    } else if (ev.code === "ArrowRight" || ev.code === "KeyD" || ev.code === "KeyL") {
-      if (current === total) return;
+      if (current > 1) changePage(current - 1);
+    } else if (current < total && (ev.code === "ArrowRight" || ev.code === "KeyD" || ev.code === "KeyL")) {
       changePage(current + 1);
     }
   });

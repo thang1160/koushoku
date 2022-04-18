@@ -14,6 +14,7 @@ var TableNames = struct {
 	Circle           string
 	Magazine         string
 	Parody           string
+	Submission       string
 	Tag              string
 	UserFavorites    string
 	Users            string
@@ -28,6 +29,7 @@ var TableNames = struct {
 	Circle:           "circle",
 	Magazine:         "magazine",
 	Parody:           "parody",
+	Submission:       "submission",
 	Tag:              "tag",
 	UserFavorites:    "user_favorites",
 	Users:            "users",

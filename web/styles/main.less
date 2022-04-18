@@ -3,6 +3,7 @@
 
 /* noto-sans-display-500 - latin */
 @font-face {
+  font-display: swap;
   font-family: "Noto Sans Display";
   font-style: normal;
   font-weight: 500;
@@ -15,6 +16,7 @@
 }
 /* noto-sans-display-600 - latin */
 @font-face {
+  font-display: swap;
   font-family: "Noto Sans Display";
   font-style: normal;
   font-weight: 600;
@@ -342,6 +344,10 @@ body {
 
     p {
       padding: 2rem;
+
+      a:not(:last-child) {
+        margin-right: 1rem;
+      }
     }
   }
 }
@@ -694,8 +700,8 @@ header .pagination:not(:last-child) {
 }
 
 #archive .title {
-  font-size: 2.4rem;
-  line-height: 3rem;
+  font-size: 2.2rem;
+  line-height: 2.8rem;
   margin-bottom: 0.4rem;
 }
 
@@ -736,10 +742,6 @@ header .pagination:not(:last-child) {
       margin-right: 0.6rem;
     }
   }
-}
-
-#test11 {
-  position: relative;
 }
 
 #reader {
@@ -802,7 +804,8 @@ header .pagination:not(:last-child) {
 }
 
 #about,
-#stats {
+#stats,
+#submission {
   h2 {
     border-bottom: 0.2rem solid lighten(@bg-secondary, 4%);
     font-size: 2rem;
@@ -868,6 +871,51 @@ header .pagination:not(:last-child) {
   p {
     margin: 1rem 0;
   }
+
+  ul {
+    list-style: disc;
+    margin-left: 2.5rem;
+  }
+}
+
+#submission {
+  .message,
+  .error {
+    box-shadow: 0 0 1rem fade(#000, 25%);
+    border: 0.1rem solid lighten(@bg-secondary, 4%);
+    border-radius: 0.4rem;
+    background-color: @bg-secondary;
+
+    padding: 0.6rem 0.8rem;
+    margin-bottom: 1rem;
+  }
+
+  form {
+    > * {
+      display: block;
+      width: 100%;
+
+      & ~ * {
+        margin-top: 1rem;
+      }
+    }
+
+    input,
+    textarea,
+    button {
+      box-shadow: 0 0 1rem fade(#000, 25%);
+      border: 0.1rem solid lighten(@bg-secondary, 4%);
+      border-radius: 0.4rem;
+      background-color: @bg-secondary;
+
+      padding: 0.6rem 0.8rem;
+    }
+
+    textarea {
+      resize: vertical;
+      min-height: 20rem;
+    }
+  }
 }
 
 @statsGap: 0.4rem;
@@ -899,6 +947,46 @@ header .pagination:not(:last-child) {
 
 #stats canvas {
   margin-top: 1rem;
+}
+
+#submissions {
+  .entries {
+    overflow-x: auto;
+    overflow-y: hidden;
+  }
+
+  table {
+    font-size: 1.6rem;
+    line-height: 2.4rem;
+    min-width: 68rem;
+    width: 100%;
+
+    th,
+    td {
+      vertical-align: top;
+      text-align: left;
+      padding: 0.6rem 0.8rem;
+    }
+
+    thead tr {
+      background-color: lighten(@bg-secondary, 2%);
+    }
+
+    tbody tr {
+      &:nth-child(odd) {
+        background-color: @bg-secondary;
+      }
+      &:nth-child(even) {
+        background-color: lighten(@bg-secondary, 2%);
+      }
+
+      p:not(:last-child) {
+        border-bottom: 0.2rem solid @bg-primary;
+        margin-bottom: 0.4rem;
+        padding-bottom: 0.4rem;
+      }
+    }
+  }
 }
 
 @media (max-width: 832px) {

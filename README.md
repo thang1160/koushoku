@@ -16,6 +16,7 @@ Archives will be indexed concurrently, and usually takes several minutes (~1m10s
 - Git
 - Go 1.18+
 - ImageMagick
+- Redis
 
 ## Setup
 
@@ -24,14 +25,14 @@ Archives will be indexed concurrently, and usually takes several minutes (~1m10s
 ```sh
 # Arch-based distributions
 sudo pacman -Syu
-sudo pacman -S git go imagemagick postgresql
+sudo pacman -S git go imagemagick postgresql redis
 
 # Debian-based distributions
 sudo apt-get install -y software-properties-common
 sudo add-apt-repository -y ppa:longsleep/golang-backports
 
 sudo apt-get update -y
-sudo apt-get install -y build-essential git golang-go postgresql imagemagick
+sudo apt-get install -y build-essential git golang-go postgresql imagemagick redis-server
 ```
 
 ### Initialize database cluster
@@ -42,10 +43,14 @@ sudo apt-get install -y build-essential git golang-go postgresql imagemagick
 echo initdb -D /var/lib/postgres/data | sudo su - postgres
 ```
 
-### Enable and start PostgreSQL
+### Enable and start PostgreSQL and Redis
 
 ```sh
-sudo systemctl --now enable postgresql
+# Arch-based distributions
+systemctl --now enable postgresql redis
+
+# Debian-based distributions
+systemctl --now enable postgresql redis-server
 ```
 
 ### Create a new database and user/role

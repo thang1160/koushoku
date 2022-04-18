@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"log"
 	"os"
 
@@ -36,6 +37,14 @@ var opts struct {
 	Import     bool    `long:"import" description:"Import metadata from metadata.json"`
 	Fpath      string  `long:"fpath" description:"F Path to import metadata from"`
 	IPath      string  `long:"ipath" description:"I Path to import metadata from"`
+
+	Accept []int64 `long:"accept" description:"Accept submission(s) by id"`
+	Reject []int64 `long:"reject" description:"Reject submission(s) by id"`
+	Note   string  `long:"note" description:"Note for the submission"`
+
+	Subs bool    `long:"subs" description:"List submissions"`
+	Sub  int64   `long:"sub" description:"Submission id"`
+	Link []int64 `long:"link" description:"Link archive(s) by id to submission"`
 }
 
 func main() {
@@ -122,6 +131,47 @@ func main() {
 		log.Println("Publishing archives...")
 		for _, id := range opts.Publish {
 			if _, err := services.PublishArchive(id); err != nil {
+				log.Fatalln(err)
+			}
+		}
+	}
+
+	if len(opts.Accept) > 0 {
+		log.Println("Accepting submissions...")
+		for _, id := range opts.Accept {
+			if err := services.AcceptSubmission(id, opts.Note); err != nil {
+				log.Fatalln(err)
+			}
+		}
+	}
+
+	if len(opts.Reject) > 0 {
+		log.Println("Rejecting submissions...")
+		for _, id := range opts.Reject {
+			if err := services.RejectSubmission(id, opts.Note); err != nil {
+				log.Fatalln(err)
+			}
+		}
+	}
+
+	if opts.Subs {
+		submissions, err := services.ListSubmissions()
+		if err != nil {
+			log.Fatalln(err)
+		}
+
+		for _, submission := range submissions {
+			fmt.Printf("%d: %s\n", submission.ID, submission.Name)
+			fmt.Printf("Accepted?: %t\n", submission.Accepted)
+			fmt.Println("Rejected?:", submission.Rejected)
+			fmt.Println(submission.Content)
+		}
+	}
+
+	if len(opts.Link) > 0 && opts.Sub > 0 {
+		log.Println("Linking submissions...")
+		for _, id := range opts.Link {
+			if err := services.LinkSubmission(id, opts.Sub); err != nil {
 				log.Fatalln(err)
 			}
 		}

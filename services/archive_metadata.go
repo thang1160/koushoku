@@ -275,6 +275,14 @@ func sendRequest(url string) (*http.Response, error) {
 	}
 
 	req.Header.Set("User-Agent", userAgent)
+	if strings.Contains(url, "irodoricomics.com") {
+		req.AddCookie(&http.Cookie{
+			Name:   "irodori_splash",
+			Value:  "1",
+			Domain: ".irodoricomics.com",
+		})
+	}
+
 	return httpClient.Do(req)
 }
 
@@ -607,7 +615,23 @@ func scrapeI(fn, fnSlug string, model *models.Archive) (ok bool) {
 		})
 	}
 
-	tags := document.Find(".ctags a")
+	productId, _ := document.Find("#product-id").Attr("value")
+	res, err = sendRequest(fmt.Sprintf("%s/index.php?route=product/product/cattags&product_id=%s", iBaseURL, productId))
+	if err != nil {
+		log.Fatalln(err)
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
+		log.Println("[I] failed to get tags:", fn)
+	}
+
+	document, err = goquery.NewDocumentFromReader(res.Body)
+	if err != nil {
+		log.Fatalln(err)
+	}
+
+	tags := document.Find(".ctags")
 	if tags.Length() > 0 {
 		tags.Each(func(i int, s *goquery.Selection) {
 			tag := strings.TrimSpace(s.Text())

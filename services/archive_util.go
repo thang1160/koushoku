@@ -665,88 +665,96 @@ func PurgeArchiveSymlinks() {
 }
 
 func GenerateThumbnails() {
-	archives, err := models.Archives(Where("published_at IS NOT NULL")).AllG()
+	archives, err := models.Archives(Where("published_at IS NOT NULL"), OrderBy("id ASC")).AllG()
 	if err != nil {
 		log.Fatalln(err)
 	}
 
-	var wg sync.WaitGroup
-	wg.Add(len(archives))
-
-	c := make(chan bool, 2)
+	wg := &sync.WaitGroup{}
+	c := make(chan bool, 5)
 	defer close(c)
 
 	for _, archive := range archives {
-		c <- true
-		go func(archive *models.Archive) {
-			defer func() {
-				wg.Done()
-				<-c
-			}()
+		log.Println("Generating thumbnails for", archive.ID, "-", archive.Title)
 
-			zf, err := zip.OpenReader(archive.Path)
-			if err != nil {
-				log.Fatalln(err)
+		zf, err := zip.OpenReader(archive.Path)
+		if err != nil {
+			log.Fatalln(err)
+		}
+
+		var files []*zip.File
+		for _, f := range zf.File {
+			stat := f.FileInfo()
+			name := stat.Name()
+
+			if stat.IsDir() || !IsImage(name) {
+				continue
 			}
 
-			var files []*zip.File
-			for _, f := range zf.File {
-				stat := f.FileInfo()
-				name := stat.Name()
+			files = append(files, f)
+		}
 
-				if stat.IsDir() || !IsImage(name) {
-					continue
+		sort.SliceStable(files, func(i, j int) bool {
+			return GetPageNum(filepath.Base(files[i].Name)) < GetPageNum(filepath.Base(files[j].Name))
+		})
+
+		wg.Add(len(files))
+		for i, f := range files {
+			c <- true
+			go func(n int, f *zip.File) {
+				defer func() {
+					wg.Done()
+					<-c
+				}()
+
+				log.Println("Generating thumbnail of page", n)
+				width := 288
+				if n > 1 {
+					width = 320
 				}
 
-				files = append(files, f)
-			}
+				fp := filepath.Join(Config.Directories.Thumbnails,
+					fmt.Sprintf("%d-%d.%d.webp", archive.ID, n, width))
 
-			sort.SliceStable(files, func(i, j int) bool {
-				return GetPageNum(filepath.Base(files[i].Name)) < GetPageNum(filepath.Base(files[j].Name))
-			})
-
-			width := 288
-			fp := filepath.Join(Config.Directories.Thumbnails,
-				fmt.Sprintf("%d-1.%d.webp", archive.ID, width))
-			f := files[0]
-
-			reader, err := f.Open()
-			if err != nil {
-				log.Fatalln(err)
-			}
-			defer reader.Close()
-
-			tmp, err := os.CreateTemp("", "tmp-")
-			if err != nil {
-				log.Fatalln(err)
-			}
-			defer func() {
-				tmp.Close()
-				os.Remove(tmp.Name())
-			}()
-
-			if _, err := io.Copy(tmp, reader); err != nil {
-				log.Fatalln(err)
-			}
-
-		Resize:
-			if _, err := os.Stat(fp); os.IsNotExist(err) {
-				opts := ResizeOptions{Width: width, Height: width * 3 / 2}
-				if err := ResizeImage(tmp.Name(), fp, opts); err != nil {
+				reader, err := f.Open()
+				if err != nil {
 					log.Fatalln(err)
 				}
-				time.Sleep(time.Second)
-			}
+				defer reader.Close()
 
-			if width == 288 {
-				width = 896
-				fp = filepath.Join(Config.Directories.Thumbnails,
-					fmt.Sprintf("%d-1.%d.webp", archive.ID, width))
-				goto Resize
-			}
-		}(archive)
+				tmp, err := os.CreateTemp("", "tmp-")
+				if err != nil {
+					log.Fatalln(err)
+				}
+				defer func() {
+					tmp.Close()
+					os.Remove(tmp.Name())
+				}()
+
+				if _, err := io.Copy(tmp, reader); err != nil {
+					log.Fatalln(err)
+				}
+
+			Resize:
+				if _, err := os.Stat(fp); os.IsNotExist(err) {
+					opts := ResizeOptions{Width: width, Height: width * 3 / 2}
+					opts.PNG = strings.HasSuffix(strings.ToLower(f.FileHeader.Name), ".png")
+					if err := ResizeImage(tmp.Name(), fp, opts); err != nil {
+						log.Fatalln(err)
+					}
+					time.Sleep(time.Second)
+				}
+
+				if width == 288 {
+					width = 896
+					fp = filepath.Join(Config.Directories.Thumbnails,
+						fmt.Sprintf("%d-%d.%d.webp", archive.ID, n, width))
+					goto Resize
+				}
+			}(i+1, f)
+		}
+		wg.Wait()
 	}
-	wg.Wait()
 }
 
 func PurgeArchiveThumbnails() {

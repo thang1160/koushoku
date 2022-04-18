@@ -744,6 +744,69 @@ header .pagination:not(:last-child) {
   }
 }
 
+#archive .previews {
+  display: block;
+  font-size: 0;
+
+  @pad: 1rem;
+  margin: 1rem -@pad -@pad;
+
+  > * {
+    display: inline-block;
+    vertical-align: top;
+
+    width: calc(100% / 6);
+    padding: @pad;
+
+    @media (max-width: 1024px) {
+      width: calc(100% / 5);
+    }
+
+    @media (max-width: 896px) {
+      width: calc(100% / 4);
+    }
+
+    @media (max-width: 768px) {
+      width: calc(100% / 3);
+    }
+
+    @media (max-width: 640px) {
+      width: calc(100% / 2);
+    }
+
+    @media (max-width: 320px) {
+      width: 100%;
+    }
+
+    > * {
+      box-shadow: 0 0 1rem fade(#000, 25%);
+      background-color: @bg-secondary;
+      border-radius: 0.4rem;
+
+      position: relative;
+      overflow: hidden;
+
+      height: 0;
+      padding-top: calc(3 / 2 * 100%);
+
+      &:hover {
+        filter: brightness(0.85);
+      }
+    }
+  }
+
+  img {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+
+    &.lazy {
+      display: none;
+    }
+  }
+}
+
 #reader {
   text-align: center;
   font-size: 0;

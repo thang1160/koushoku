@@ -5,6 +5,7 @@
     <body>
       {{- template "header" . }}
       {{- $archive := .archive }}
+      {{- $dataBaseURL := .dataBaseURL }}
       <main id="archive">
         <aside>
           <figure class="thumbnail">
@@ -23,7 +24,7 @@
             <tbody>
               {{- if .archive.Artists }}
                 <tr class="artists">
-                  <td>Artists</td>
+                  <td>Artist{{- if gt (len .archive.Artists) 1 }}s{{- end }}</td>
                   <td>
                     {{- range $i, $v := .archive.Artists }}
                       {{- if $i }},{{- end }}
@@ -34,7 +35,7 @@
               {{- end }}
               {{- if .archive.Circles }}
                 <tr class="circles">
-                  <td>Circles</td>
+                  <td>Circle{{- if gt (len .archive.Circles) 1 }}s{{- end }}</td>
                   <td>
                     {{- range $i, $v := .archive.Circles }}
                       {{- if $i }},{{- end }}
@@ -45,7 +46,7 @@
               {{- end }}
               {{- if .archive.Magazines }}
                 <tr class="magazines">
-                  <td>Magazines</td>
+                  <td>Magazine{{- if gt (len .archive.Magazines) 1 }}s{{- end }}</td>
                   <td>
                     {{- range $i, $v := .archive.Magazines }}
                       {{- if $i }},{{- end }}
@@ -56,7 +57,7 @@
               {{- end }}
               {{- if .archive.Parodies }}
                 <tr class="parodies">
-                  <td>Parodies</td>
+                  <td>{{- if gt (len .archive.Parodies) 1 }}Parodies{{- else }}Parody{{- end }}</td>
                   <td>
                     {{- range $i, $v := .archive.Parodies }}
                       {{- if $i }},{{- end }}
@@ -86,13 +87,25 @@
               </tr>
               {{- $format := "Mon, 02 Jan 2006 15:04:05 MST" }}
               <tr class="created">
-                <td>CreatedAt</td>
+                <td>Created</td>
                 <td data-unix="{{ .archive.CreatedAt }}">{{ formatUnix .archive.CreatedAt $format }}</td>
               </tr>
               <tr class="published">
-                <td>PublishedAt</td>
+                <td>Published</td>
                 <td data-unix="{{ .archive.PublishedAt }}">{{ formatUnix .archive.PublishedAt $format }}</td>
               </tr>
+              {{- if .archive.Submission }}
+                <tr class="submitter">
+                  <td>Submitter</td>
+                  <td>
+                    {{- if .archive.Submission.Submitter }}
+                      {{ .archive.Submission.Submitter }}
+                    {{- else }}
+                      anonymous
+                    {{- end }}
+                  </td>
+                </tr>
+              {{- end }}
             </tbody>
           </table>
           <div class="actions">
@@ -136,6 +149,22 @@
               <span>Download</span>
             </a>
           </div>
+        </div>
+        <div class="previews">
+          {{- range $i, $v := (makeSlice .archive.Pages ) }}
+            {{ $n := inc $i }}
+            <div class="preview">
+              <div>
+                <a href="/archive/{{ $archive.ID }}/{{ $archive.Slug }}/{{ $n }}">
+                  <img
+                    alt="Preview of page {{ $n }} for {{ $archive.Title }}"
+                    src="{{ $dataBaseURL }}/data/{{ $archive.ID }}/{{ $n }}/320.webp"
+                    loading="lazy"
+                  />
+                </a>
+              </div>
+            </div>
+          {{- end }}
         </div>
       </main>
       {{- template "footer" . }}

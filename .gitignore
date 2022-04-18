@@ -22,7 +22,6 @@ contrib/nginx/*.conf
 bin/*
 bin/app.webmanifest
 bin/assets/**/*.development.*
-bin/templates/about.html
 bin/assets/favicon.ico
 !bin/templates
 !bin/assets

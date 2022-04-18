@@ -176,7 +176,7 @@ func ServePage(c *server.Context) {
 	}
 
 	var fp string
-	if pageNum == 1 && (width == 288 || width == 896) {
+	if (pageNum == 1 && (width == 288 || width == 896)) || width == 320 {
 		fp = filepath.Join(Config.Directories.Thumbnails, fmt.Sprintf("%d-%d.%d.webp", id, pageNum, width))
 		if _, err := os.Stat(fp); err == nil {
 			c.ServeFile(fp)

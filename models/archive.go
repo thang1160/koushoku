@@ -23,62 +23,67 @@ import (
 
 // Archive is an object representing the database table.
 type Archive struct {
-	ID          int64     `boil:"id" json:"id" toml:"id" yaml:"id"`
-	Path        string    `boil:"path" json:"path" toml:"path" yaml:"path"`
-	CreatedAt   time.Time `boil:"created_at" json:"created_at" toml:"created_at" yaml:"created_at"`
-	UpdatedAt   time.Time `boil:"updated_at" json:"updated_at" toml:"updated_at" yaml:"updated_at"`
-	PublishedAt null.Time `boil:"published_at" json:"published_at,omitempty" toml:"published_at" yaml:"published_at,omitempty"`
-	Title       string    `boil:"title" json:"title" toml:"title" yaml:"title"`
-	Slug        string    `boil:"slug" json:"slug" toml:"slug" yaml:"slug"`
-	Pages       int16     `boil:"pages" json:"pages" toml:"pages" yaml:"pages"`
-	Size        int64     `boil:"size" json:"size" toml:"size" yaml:"size"`
+	ID           int64      `boil:"id" json:"id" toml:"id" yaml:"id"`
+	Path         string     `boil:"path" json:"path" toml:"path" yaml:"path"`
+	CreatedAt    time.Time  `boil:"created_at" json:"created_at" toml:"created_at" yaml:"created_at"`
+	UpdatedAt    time.Time  `boil:"updated_at" json:"updated_at" toml:"updated_at" yaml:"updated_at"`
+	PublishedAt  null.Time  `boil:"published_at" json:"published_at,omitempty" toml:"published_at" yaml:"published_at,omitempty"`
+	Title        string     `boil:"title" json:"title" toml:"title" yaml:"title"`
+	Slug         string     `boil:"slug" json:"slug" toml:"slug" yaml:"slug"`
+	Pages        int16      `boil:"pages" json:"pages" toml:"pages" yaml:"pages"`
+	Size         int64      `boil:"size" json:"size" toml:"size" yaml:"size"`
+	SubmissionID null.Int64 `boil:"submission_id" json:"submission_id,omitempty" toml:"submission_id" yaml:"submission_id,omitempty"`
 
 	R *archiveR `boil:"-" json:"-" toml:"-" yaml:"-"`
 	L archiveL  `boil:"-" json:"-" toml:"-" yaml:"-"`
 }
 
 var ArchiveColumns = struct {
-	ID          string
-	Path        string
-	CreatedAt   string
-	UpdatedAt   string
-	PublishedAt string
-	Title       string
-	Slug        string
-	Pages       string
-	Size        string
+	ID           string
+	Path         string
+	CreatedAt    string
+	UpdatedAt    string
+	PublishedAt  string
+	Title        string
+	Slug         string
+	Pages        string
+	Size         string
+	SubmissionID string
 }{
-	ID:          "id",
-	Path:        "path",
-	CreatedAt:   "created_at",
-	UpdatedAt:   "updated_at",
-	PublishedAt: "published_at",
-	Title:       "title",
-	Slug:        "slug",
-	Pages:       "pages",
-	Size:        "size",
+	ID:           "id",
+	Path:         "path",
+	CreatedAt:    "created_at",
+	UpdatedAt:    "updated_at",
+	PublishedAt:  "published_at",
+	Title:        "title",
+	Slug:         "slug",
+	Pages:        "pages",
+	Size:         "size",
+	SubmissionID: "submission_id",
 }
 
 var ArchiveTableColumns = struct {
-	ID          string
-	Path        string
-	CreatedAt   string
-	UpdatedAt   string
-	PublishedAt string
-	Title       string
-	Slug        string
-	Pages       string
-	Size        string
+	ID           string
+	Path         string
+	CreatedAt    string
+	UpdatedAt    string
+	PublishedAt  string
+	Title        string
+	Slug         string
+	Pages        string
+	Size         string
+	SubmissionID string
 }{
-	ID:          "archive.id",
-	Path:        "archive.path",
-	CreatedAt:   "archive.created_at",
-	UpdatedAt:   "archive.updated_at",
-	PublishedAt: "archive.published_at",
-	Title:       "archive.title",
-	Slug:        "archive.slug",
-	Pages:       "archive.pages",
-	Size:        "archive.size",
+	ID:           "archive.id",
+	Path:         "archive.path",
+	CreatedAt:    "archive.created_at",
+	UpdatedAt:    "archive.updated_at",
+	PublishedAt:  "archive.published_at",
+	Title:        "archive.title",
+	Slug:         "archive.slug",
+	Pages:        "archive.pages",
+	Size:         "archive.size",
+	SubmissionID: "archive.submission_id",
 }
 
 // Generated where
@@ -197,53 +202,82 @@ func (w whereHelperint16) NIN(slice []int16) qm.QueryMod {
 	return qm.WhereNotIn(fmt.Sprintf("%s NOT IN ?", w.field), values...)
 }
 
+type whereHelpernull_Int64 struct{ field string }
+
+func (w whereHelpernull_Int64) EQ(x null.Int64) qm.QueryMod {
+	return qmhelper.WhereNullEQ(w.field, false, x)
+}
+func (w whereHelpernull_Int64) NEQ(x null.Int64) qm.QueryMod {
+	return qmhelper.WhereNullEQ(w.field, true, x)
+}
+func (w whereHelpernull_Int64) LT(x null.Int64) qm.QueryMod {
+	return qmhelper.Where(w.field, qmhelper.LT, x)
+}
+func (w whereHelpernull_Int64) LTE(x null.Int64) qm.QueryMod {
+	return qmhelper.Where(w.field, qmhelper.LTE, x)
+}
+func (w whereHelpernull_Int64) GT(x null.Int64) qm.QueryMod {
+	return qmhelper.Where(w.field, qmhelper.GT, x)
+}
+func (w whereHelpernull_Int64) GTE(x null.Int64) qm.QueryMod {
+	return qmhelper.Where(w.field, qmhelper.GTE, x)
+}
+
+func (w whereHelpernull_Int64) IsNull() qm.QueryMod    { return qmhelper.WhereIsNull(w.field) }
+func (w whereHelpernull_Int64) IsNotNull() qm.QueryMod { return qmhelper.WhereIsNotNull(w.field) }
+
 var ArchiveWhere = struct {
-	ID          whereHelperint64
-	Path        whereHelperstring
-	CreatedAt   whereHelpertime_Time
-	UpdatedAt   whereHelpertime_Time
-	PublishedAt whereHelpernull_Time
-	Title       whereHelperstring
-	Slug        whereHelperstring
-	Pages       whereHelperint16
-	Size        whereHelperint64
+	ID           whereHelperint64
+	Path         whereHelperstring
+	CreatedAt    whereHelpertime_Time
+	UpdatedAt    whereHelpertime_Time
+	PublishedAt  whereHelpernull_Time
+	Title        whereHelperstring
+	Slug         whereHelperstring
+	Pages        whereHelperint16
+	Size         whereHelperint64
+	SubmissionID whereHelpernull_Int64
 }{
-	ID:          whereHelperint64{field: "\"archive\".\"id\""},
-	Path:        whereHelperstring{field: "\"archive\".\"path\""},
-	CreatedAt:   whereHelpertime_Time{field: "\"archive\".\"created_at\""},
-	UpdatedAt:   whereHelpertime_Time{field: "\"archive\".\"updated_at\""},
-	PublishedAt: whereHelpernull_Time{field: "\"archive\".\"published_at\""},
-	Title:       whereHelperstring{field: "\"archive\".\"title\""},
-	Slug:        whereHelperstring{field: "\"archive\".\"slug\""},
-	Pages:       whereHelperint16{field: "\"archive\".\"pages\""},
-	Size:        whereHelperint64{field: "\"archive\".\"size\""},
+	ID:           whereHelperint64{field: "\"archive\".\"id\""},
+	Path:         whereHelperstring{field: "\"archive\".\"path\""},
+	CreatedAt:    whereHelpertime_Time{field: "\"archive\".\"created_at\""},
+	UpdatedAt:    whereHelpertime_Time{field: "\"archive\".\"updated_at\""},
+	PublishedAt:  whereHelpernull_Time{field: "\"archive\".\"published_at\""},
+	Title:        whereHelperstring{field: "\"archive\".\"title\""},
+	Slug:         whereHelperstring{field: "\"archive\".\"slug\""},
+	Pages:        whereHelperint16{field: "\"archive\".\"pages\""},
+	Size:         whereHelperint64{field: "\"archive\".\"size\""},
+	SubmissionID: whereHelpernull_Int64{field: "\"archive\".\"submission_id\""},
 }
 
 // ArchiveRels is where relationship names are stored.
 var ArchiveRels = struct {
-	Artists   string
-	Circles   string
-	Magazines string
-	Parodies  string
-	Tags      string
-	Users     string
+	Submission string
+	Artists    string
+	Circles    string
+	Magazines  string
+	Parodies   string
+	Tags       string
+	Users      string
 }{
-	Artists:   "Artists",
-	Circles:   "Circles",
-	Magazines: "Magazines",
-	Parodies:  "Parodies",
-	Tags:      "Tags",
-	Users:     "Users",
+	Submission: "Submission",
+	Artists:    "Artists",
+	Circles:    "Circles",
+	Magazines:  "Magazines",
+	Parodies:   "Parodies",
+	Tags:       "Tags",
+	Users:      "Users",
 }
 
 // archiveR is where relationships are stored.
 type archiveR struct {
-	Artists   ArtistSlice   `boil:"Artists" json:"Artists" toml:"Artists" yaml:"Artists"`
-	Circles   CircleSlice   `boil:"Circles" json:"Circles" toml:"Circles" yaml:"Circles"`
-	Magazines MagazineSlice `boil:"Magazines" json:"Magazines" toml:"Magazines" yaml:"Magazines"`
-	Parodies  ParodySlice   `boil:"Parodies" json:"Parodies" toml:"Parodies" yaml:"Parodies"`
-	Tags      TagSlice      `boil:"Tags" json:"Tags" toml:"Tags" yaml:"Tags"`
-	Users     UserSlice     `boil:"Users" json:"Users" toml:"Users" yaml:"Users"`
+	Submission *Submission   `boil:"Submission" json:"Submission" toml:"Submission" yaml:"Submission"`
+	Artists    ArtistSlice   `boil:"Artists" json:"Artists" toml:"Artists" yaml:"Artists"`
+	Circles    CircleSlice   `boil:"Circles" json:"Circles" toml:"Circles" yaml:"Circles"`
+	Magazines  MagazineSlice `boil:"Magazines" json:"Magazines" toml:"Magazines" yaml:"Magazines"`
+	Parodies   ParodySlice   `boil:"Parodies" json:"Parodies" toml:"Parodies" yaml:"Parodies"`
+	Tags       TagSlice      `boil:"Tags" json:"Tags" toml:"Tags" yaml:"Tags"`
+	Users      UserSlice     `boil:"Users" json:"Users" toml:"Users" yaml:"Users"`
 }
 
 // NewStruct creates a new relationship struct
@@ -255,9 +289,9 @@ func (*archiveR) NewStruct() *archiveR {
 type archiveL struct{}
 
 var (
-	archiveAllColumns            = []string{"id", "path", "created_at", "updated_at", "published_at", "title", "slug", "pages", "size"}
+	archiveAllColumns            = []string{"id", "path", "created_at", "updated_at", "published_at", "title", "slug", "pages", "size", "submission_id"}
 	archiveColumnsWithoutDefault = []string{"path", "pages", "size"}
-	archiveColumnsWithDefault    = []string{"id", "created_at", "updated_at", "published_at", "title", "slug"}
+	archiveColumnsWithDefault    = []string{"id", "created_at", "updated_at", "published_at", "title", "slug", "submission_id"}
 	archivePrimaryKeyColumns     = []string{"id"}
 	archiveGeneratedColumns      = []string{}
 )
@@ -524,6 +558,20 @@ func (q archiveQuery) Exists(exec boil.Executor) (bool, error) {
 	return count > 0, nil
 }
 
+// Submission pointed to by the foreign key.
+func (o *Archive) Submission(mods ...qm.QueryMod) submissionQuery {
+	queryMods := []qm.QueryMod{
+		qm.Where("\"id\" = ?", o.SubmissionID),
+	}
+
+	queryMods = append(queryMods, mods...)
+
+	query := Submissions(queryMods...)
+	queries.SetFrom(query.Query, "\"submission\"")
+
+	return query
+}
+
 // Artists retrieves all the artist's Artists with an executor.
 func (o *Archive) Artists(mods ...qm.QueryMod) artistQuery {
 	var queryMods []qm.QueryMod
@@ -654,6 +702,114 @@ func (o *Archive) Users(mods ...qm.QueryMod) userQuery {
 	}
 
 	return query
+}
+
+// LoadSubmission allows an eager lookup of values, cached into the
+// loaded structs of the objects. This is for an N-1 relationship.
+func (archiveL) LoadSubmission(e boil.Executor, singular bool, maybeArchive interface{}, mods queries.Applicator) error {
+	var slice []*Archive
+	var object *Archive
+
+	if singular {
+		object = maybeArchive.(*Archive)
+	} else {
+		slice = *maybeArchive.(*[]*Archive)
+	}
+
+	args := make([]interface{}, 0, 1)
+	if singular {
+		if object.R == nil {
+			object.R = &archiveR{}
+		}
+		if !queries.IsNil(object.SubmissionID) {
+			args = append(args, object.SubmissionID)
+		}
+
+	} else {
+	Outer:
+		for _, obj := range slice {
+			if obj.R == nil {
+				obj.R = &archiveR{}
+			}
+
+			for _, a := range args {
+				if queries.Equal(a, obj.SubmissionID) {
+					continue Outer
+				}
+			}
+
+			if !queries.IsNil(obj.SubmissionID) {
+				args = append(args, obj.SubmissionID)
+			}
+
+		}
+	}
+
+	if len(args) == 0 {
+		return nil
+	}
+
+	query := NewQuery(
+		qm.From(`submission`),
+		qm.WhereIn(`submission.id in ?`, args...),
+	)
+	if mods != nil {
+		mods.Apply(query)
+	}
+
+	results, err := query.Query(e)
+	if err != nil {
+		return errors.Wrap(err, "failed to eager load Submission")
+	}
+
+	var resultSlice []*Submission
+	if err = queries.Bind(results, &resultSlice); err != nil {
+		return errors.Wrap(err, "failed to bind eager loaded slice Submission")
+	}
+
+	if err = results.Close(); err != nil {
+		return errors.Wrap(err, "failed to close results of eager load for submission")
+	}
+	if err = results.Err(); err != nil {
+		return errors.Wrap(err, "error occurred during iteration of eager loaded relations for submission")
+	}
+
+	if len(archiveAfterSelectHooks) != 0 {
+		for _, obj := range resultSlice {
+			if err := obj.doAfterSelectHooks(e); err != nil {
+				return err
+			}
+		}
+	}
+
+	if len(resultSlice) == 0 {
+		return nil
+	}
+
+	if singular {
+		foreign := resultSlice[0]
+		object.R.Submission = foreign
+		if foreign.R == nil {
+			foreign.R = &submissionR{}
+		}
+		foreign.R.Archives = append(foreign.R.Archives, object)
+		return nil
+	}
+
+	for _, local := range slice {
+		for _, foreign := range resultSlice {
+			if queries.Equal(local.SubmissionID, foreign.ID) {
+				local.R.Submission = foreign
+				if foreign.R == nil {
+					foreign.R = &submissionR{}
+				}
+				foreign.R.Archives = append(foreign.R.Archives, local)
+				break
+			}
+		}
+	}
+
+	return nil
 }
 
 // LoadArtists allows an eager lookup of values, cached into the
@@ -1343,6 +1499,101 @@ func (archiveL) LoadUsers(e boil.Executor, singular bool, maybeArchive interface
 		}
 	}
 
+	return nil
+}
+
+// SetSubmissionG of the archive to the related item.
+// Sets o.R.Submission to related.
+// Adds o to related.R.Archives.
+// Uses the global database handle.
+func (o *Archive) SetSubmissionG(insert bool, related *Submission) error {
+	return o.SetSubmission(boil.GetDB(), insert, related)
+}
+
+// SetSubmission of the archive to the related item.
+// Sets o.R.Submission to related.
+// Adds o to related.R.Archives.
+func (o *Archive) SetSubmission(exec boil.Executor, insert bool, related *Submission) error {
+	var err error
+	if insert {
+		if err = related.Insert(exec, boil.Infer()); err != nil {
+			return errors.Wrap(err, "failed to insert into foreign table")
+		}
+	}
+
+	updateQuery := fmt.Sprintf(
+		"UPDATE \"archive\" SET %s WHERE %s",
+		strmangle.SetParamNames("\"", "\"", 1, []string{"submission_id"}),
+		strmangle.WhereClause("\"", "\"", 2, archivePrimaryKeyColumns),
+	)
+	values := []interface{}{related.ID, o.ID}
+
+	if boil.DebugMode {
+		fmt.Fprintln(boil.DebugWriter, updateQuery)
+		fmt.Fprintln(boil.DebugWriter, values)
+	}
+	if _, err = exec.Exec(updateQuery, values...); err != nil {
+		return errors.Wrap(err, "failed to update local table")
+	}
+
+	queries.Assign(&o.SubmissionID, related.ID)
+	if o.R == nil {
+		o.R = &archiveR{
+			Submission: related,
+		}
+	} else {
+		o.R.Submission = related
+	}
+
+	if related.R == nil {
+		related.R = &submissionR{
+			Archives: ArchiveSlice{o},
+		}
+	} else {
+		related.R.Archives = append(related.R.Archives, o)
+	}
+
+	return nil
+}
+
+// RemoveSubmissionG relationship.
+// Sets o.R.Submission to nil.
+// Removes o from all passed in related items' relationships struct (Optional).
+// Uses the global database handle.
+func (o *Archive) RemoveSubmissionG(related *Submission) error {
+	return o.RemoveSubmission(boil.GetDB(), related)
+}
+
+// RemoveSubmission relationship.
+// Sets o.R.Submission to nil.
+// Removes o from all passed in related items' relationships struct (Optional).
+func (o *Archive) RemoveSubmission(exec boil.Executor, related *Submission) error {
+	var err error
+
+	queries.SetScanner(&o.SubmissionID, nil)
+	if err = o.Update(exec, boil.Whitelist("submission_id")); err != nil {
+		return errors.Wrap(err, "failed to update local table")
+	}
+
+	if o.R != nil {
+		o.R.Submission = nil
+	}
+	if related == nil || related.R == nil {
+		return nil
+	}
+
+	for i, ri := range related.R.Archives {
+		if queries.Equal(o.SubmissionID, ri.SubmissionID) {
+			continue
+		}
+
+		ln := len(related.R.Archives)
+		if ln > 1 && i < ln-1 {
+			related.R.Archives[i] = related.R.Archives[ln-1]
+		}
+		related.R.Archives = related.R.Archives[:ln-1]
+		break
+	}
 	return nil
 }
 

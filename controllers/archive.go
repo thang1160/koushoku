@@ -41,6 +41,7 @@ func Archive(c *server.Context) {
 			services.ArchiveRels.Magazines,
 			services.ArchiveRels.Parodies,
 			services.ArchiveRels.Tags,
+			services.ArchiveRels.Submission,
 		},
 	}
 	result := services.GetArchive(id, opts)

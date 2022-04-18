@@ -46,6 +46,13 @@ var Config struct {
 		SSLMode string
 	}
 
+	Redis struct {
+		Host   string
+		Port   int
+		DB     int
+		Passwd string
+	}
+
 	Server struct {
 		WebPort  int
 		DataPort int
@@ -173,6 +180,11 @@ func init() {
 	Config.Database.Passwd = file.Section("database").Key("passwd").MustString("koushoku")
 	Config.Database.SSLMode = file.Section("database").Key("ssl_mode").MustString("disable")
 
+	Config.Redis.Host = file.Section("redis").Key("host").MustString("localhost")
+	Config.Redis.Port = file.Section("redis").Key("port").MustInt(6379)
+	Config.Redis.DB = file.Section("redis").Key("db").MustInt(0)
+	Config.Redis.Passwd = file.Section("redis").Key("passwd").String()
+
 	Config.Server.WebPort = 42073
 	Config.Server.DataPort = 42075
 	Config.HTTP.Cookie = file.Section("http").Key("cookie").String()
@@ -223,6 +235,11 @@ func Save() error {
 	Config.file.Section("database").Key("user").SetValue(Config.Database.User)
 	Config.file.Section("database").Key("passwd").SetValue(Config.Database.Passwd)
 	Config.file.Section("database").Key("ssl_mode").SetValue(Config.Database.SSLMode)
+
+	Config.file.Section("redis").Key("host").SetValue(Config.Redis.Host)
+	Config.file.Section("redis").Key("port").SetValue(strconv.Itoa(Config.Redis.Port))
+	Config.file.Section("redis").Key("db").SetValue(strconv.Itoa(Config.Redis.DB))
+	Config.file.Section("redis").Key("passwd").SetValue(Config.Redis.Passwd)
 
 	Config.file.Section("http").Key("cookie").SetValue(Config.HTTP.Cookie)
 

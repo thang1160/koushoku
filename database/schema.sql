@@ -142,3 +142,33 @@ CREATE TABLE IF NOT EXISTS user_favorites (
 
 CREATE INDEX IF NOT EXISTS user_favorites_user_id_index ON user_favorites(user_id);
 CREATE INDEX IF NOT EXISTS user_favorites_archive_id_index ON user_favorites(archive_id);
+
+
+CREATE TABLE IF NOT EXISTS submission (
+  id  BIGSERIAL PRIMARY KEY,
+  
+  created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
+  
+  name VARCHAR(1024) NOT NULL DEFAULT NULL,
+  submitter VARCHAR(128) DEFAULT NULL,
+  content VARCHAR(4096) NOT NULL DEFAULT NULL,
+  notes VARCHAR(4096) DEFAULT NULL,
+
+  accepted_at TIMESTAMP,
+  rejected_at TIMESTAMP,
+
+  accepted BOOLEAN NOT NULL DEFAULT FALSE,
+  rejected BOOLEAN NOT NULL DEFAULT FALSE
+);
+
+CREATE INDEX IF NOT EXISTS submission_created_at_index ON submission(created_at);
+CREATE INDEX IF NOT EXISTS submission_updated_at_index ON submission(updated_at);
+CREATE INDEX IF NOT EXISTS submission_submitter_index ON submission(submitter);
+CREATE INDEX IF NOT EXISTS submission_accepted_at_index ON submission(accepted_at);
+CREATE INDEX IF NOT EXISTS submission_accepted_index ON submission(accepted);
+CREATE INDEX IF NOT EXISTS submission_rejected_at_index ON submission(rejected_at);
+CREATE INDEX IF NOT EXISTS submission_rejected_index ON submission(rejected);
+
+ALTER TABLE archive
+  ADD COLUMN IF NOT EXISTS submission_id BIGINT DEFAULT NULL REFERENCES submission(id) ON DELETE CASCADE;

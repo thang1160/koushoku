@@ -44,9 +44,17 @@ var helper = map[string]any{
 		switch v := v.(type) {
 		case int:
 			n = int64(v)
+		case int16:
+			n = int64(v)
+		case int32:
+			n = int64(v)
 		case int64:
 			n = v
 		case uint:
+			n = int64(v)
+		case uint16:
+			n = int64(v)
+		case uint32:
 			n = int64(v)
 		case uint64:
 			n = int64(v)
@@ -61,6 +69,27 @@ var helper = map[string]any{
 	"setQuery": func(query url.Values, key string, value any) string {
 		query.Set(key, fmt.Sprintf("%v", value))
 		return fmt.Sprintf("?%s", query.Encode())
+	},
+
+	"makeSlice": func(v any) []int {
+		var n int
+		switch v := v.(type) {
+		case int:
+			n = v
+		case int16:
+			n = int(v)
+		case int32:
+			n = int(v)
+		case int64:
+			n = int(v)
+		case uint:
+			n = int(v)
+		case uint32:
+			n = int(v)
+		case uint64:
+			n = int(v)
+		}
+		return make([]int, n)
 	},
 
 	"createQuery": func(query url.Values, key string, value any) string {

@@ -77,15 +77,6 @@ var UserTableColumns = struct {
 
 // Generated where
 
-type whereHelperbool struct{ field string }
-
-func (w whereHelperbool) EQ(x bool) qm.QueryMod  { return qmhelper.Where(w.field, qmhelper.EQ, x) }
-func (w whereHelperbool) NEQ(x bool) qm.QueryMod { return qmhelper.Where(w.field, qmhelper.NEQ, x) }
-func (w whereHelperbool) LT(x bool) qm.QueryMod  { return qmhelper.Where(w.field, qmhelper.LT, x) }
-func (w whereHelperbool) LTE(x bool) qm.QueryMod { return qmhelper.Where(w.field, qmhelper.LTE, x) }
-func (w whereHelperbool) GT(x bool) qm.QueryMod  { return qmhelper.Where(w.field, qmhelper.GT, x) }
-func (w whereHelperbool) GTE(x bool) qm.QueryMod { return qmhelper.Where(w.field, qmhelper.GTE, x) }
-
 var UserWhere = struct {
 	ID        whereHelperint64
 	CreatedAt whereHelpertime_Time
@@ -458,7 +449,7 @@ func (userL) LoadArchives(e boil.Executor, singular bool, maybeUser interface{},
 	}
 
 	query := NewQuery(
-		qm.Select("\"archive\".id, \"archive\".path, \"archive\".created_at, \"archive\".updated_at, \"archive\".published_at, \"archive\".title, \"archive\".slug, \"archive\".pages, \"archive\".size, \"a\".\"user_id\""),
+		qm.Select("\"archive\".id, \"archive\".path, \"archive\".created_at, \"archive\".updated_at, \"archive\".published_at, \"archive\".title, \"archive\".slug, \"archive\".pages, \"archive\".size, \"archive\".submission_id, \"a\".\"user_id\""),
 		qm.From("\"archive\""),
 		qm.InnerJoin("\"user_favorites\" as \"a\" on \"archive\".\"id\" = \"a\".\"archive_id\""),
 		qm.WhereIn("\"a\".\"user_id\" in ?", args...),
@@ -479,7 +470,7 @@ func (userL) LoadArchives(e boil.Executor, singular bool, maybeUser interface{},
 		one := new(Archive)
 		var localJoinCol int64
 
-		err = results.Scan(&one.ID, &one.Path, &one.CreatedAt, &one.UpdatedAt, &one.PublishedAt, &one.Title, &one.Slug, &one.Pages, &one.Size, &localJoinCol)
+		err = results.Scan(&one.ID, &one.Path, &one.CreatedAt, &one.UpdatedAt, &one.PublishedAt, &one.Title, &one.Slug, &one.Pages, &one.Size, &one.SubmissionID, &localJoinCol)
 		if err != nil {
 			return errors.Wrap(err, "failed to scan eager loaded results for archive")
 		}

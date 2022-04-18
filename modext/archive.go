@@ -15,11 +15,12 @@ type Archive struct {
 	Pages int16  `json:"pages,omitempty"`
 	Size  int64  `json:"size,omitempty"`
 
-	Artists   []*Artist   `json:"artists,omitempty"`
-	Circles   []*Circle   `json:"circles,omitempty"`
-	Magazines []*Magazine `json:"magazines,omitempty"`
-	Parodies  []*Parody   `json:"parodies,omitempty"`
-	Tags      []*Tag      `json:"tags,omitempty"`
+	Artists    []*Artist   `json:"artists,omitempty"`
+	Circles    []*Circle   `json:"circles,omitempty"`
+	Magazines  []*Magazine `json:"magazines,omitempty"`
+	Parodies   []*Parody   `json:"parodies,omitempty"`
+	Tags       []*Tag      `json:"tags,omitempty"`
+	Submission *Submission `json:"submission,omitempty"`
 }
 
 func NewArchive(model *models.Archive) *Archive {
@@ -57,6 +58,7 @@ func (archive *Archive) LoadRels(model *models.Archive) *Archive {
 	archive.LoadMagazine(model)
 	archive.LoadParody(model)
 	archive.LoadTags(model)
+	archive.LoadSubmission(model)
 
 	return archive
 }
@@ -123,5 +125,14 @@ func (archive *Archive) LoadTags(model *models.Archive) *Archive {
 		archive.Tags[i] = NewTag(tag)
 	}
 
+	return archive
+}
+
+func (archive *Archive) LoadSubmission(model *models.Archive) *Archive {
+	if model == nil || model.R == nil || model.R.Submission == nil {
+		return archive
+	}
+
+	archive.Submission = NewSubmission(model.R.Submission)
 	return archive
 }

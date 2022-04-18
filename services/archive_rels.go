@@ -199,6 +199,8 @@ func validateRels(rels []string) (result []string) {
 			result = append(result, ArchiveRels.Parodies)
 		} else if strings.EqualFold(v, ArchiveRels.Tags) {
 			result = append(result, ArchiveRels.Tags)
+		} else if strings.EqualFold(v, ArchiveRels.Submission) {
+			result = append(result, ArchiveRels.Submission)
 		}
 	}
 	sort.Strings(result)

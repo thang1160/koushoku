@@ -239,6 +239,7 @@ func Pluralize(str string) string {
 type ResizeOptions struct {
 	Width  int
 	Height int
+	PNG    bool
 }
 
 var resizer struct {
@@ -284,24 +285,29 @@ func ResizeImage(filePath, outputPath string, opts ResizeOptions) error {
 		<-resizer.Queue
 	}()
 
+	args := []string{
+		"-thumbnail", fmt.Sprintf("%dx%d^", opts.Width, opts.Height),
+		"-gravity", "Center",
+		"-extent", fmt.Sprintf("%dx%d", opts.Width, opts.Height),
+		"-quality", "85",
+		"-write", outputPath,
+		filePath}
+
 	var err error
 	for i := 0; i < 3; i++ {
-		_, err = RunCommand("mogrify",
-			"-thumbnail", fmt.Sprintf("%dx%d^", opts.Width, opts.Height),
-			"-gravity", "Center",
-			"-extent", fmt.Sprintf("%dx%d", opts.Width, opts.Height),
-			"-quality", "85",
-			"-write", outputPath,
-			filePath)
-		if err != nil {
+		if i == 1 {
+			args = append(args, "-define", "colorspace:auto-grayscale=false")
+		} else if i == 2 {
+			args = append(args[:len(args)-3], fmt.Sprintf("PNG32:%s", filePath))
+		}
+
+		if _, err = RunCommand("mogrify", args...); err != nil && opts.PNG {
 			continue
 		}
 		break
 	}
 
-	if err == nil {
-		_, err = os.Stat(outputPath)
-	}
+	_, err = os.Stat(outputPath)
 	return err
 }
 

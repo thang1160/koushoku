@@ -335,14 +335,17 @@ func searchF(model *models.Archive) (path string, err error) {
 	return
 }
 
-func scrapeF(fn, fnSlug string, model *models.Archive) (ok bool) {
-	path, err := searchF(model)
-	if err != nil {
-		log.Fatalln(err)
-	}
-
+func scrapeF(fn, fnSlug, path string, model *models.Archive) (ok bool) {
 	if len(path) == 0 {
-		path = fmt.Sprintf("/hentai/%s-english", model.Slug)
+		var err error
+		path, err = searchF(model)
+		if err != nil {
+			log.Fatalln(err)
+		}
+
+		if len(path) == 0 {
+			path = fmt.Sprintf("/hentai/%s-english", model.Slug)
+		}
 	}
 
 	res, err := sendRequest(fBaseURL + path)
@@ -552,22 +555,24 @@ func searchI(model *models.Archive) (path string, err error) {
 	return
 }
 
-func scrapeI(fn, fnSlug string, model *models.Archive) (ok bool) {
-	path, err := searchI(model)
-	if err != nil {
-		log.Fatalln(err)
+func scrapeI(fn, fnSlug, path string, model *models.Archive) (ok bool) {
+	if len(path) == 0 {
+		var err error
+		path, err = searchI(model)
+		if err != nil {
+			log.Fatalln(err)
+		}
+
+		if len(path) == 0 && len(model.R.Artists) == 1 {
+			path = fmt.Sprintf("/%s/%s", model.R.Artists[0].Slug, model.Slug)
+		}
 	}
 
-	if len(path) == 0 && len(model.R.Artists) == 1 {
-		path = fmt.Sprintf("/%s/%s", model.R.Artists[0].Slug, model.Slug)
+	if !strings.HasPrefix(path, "http") {
+		path = iBaseURL + path
 	}
 
-	u := path
-	if !strings.HasPrefix(u, "http") {
-		u = iBaseURL + path
-	}
-
-	res, err := sendRequest(u)
+	res, err := sendRequest(path)
 	if err != nil {
 		log.Fatalln(err)
 	}
@@ -693,12 +698,44 @@ func ScrapeMetadata() {
 				return
 			}
 
-			if !scrapeF(fn, fnSlug, model) {
-				scrapeI(fn, fnSlug, model)
+			if !scrapeF(fn, fnSlug, "", model) {
+				scrapeI(fn, fnSlug, "", model)
 			}
 		}(i, model)
 	}
 	wg.Wait()
+
+	buf, err := json.Marshal(metadatas.Map)
+	if err == nil {
+		err = os.WriteFile("metadata.json", buf, 755)
+	}
+
+	if err != nil {
+		log.Fatalln(errors.WithStack(err))
+	}
+}
+
+func ScrapeMetadataById(id int64, fpath, ipath string) {
+	initHttpClient()
+	loadAliases()
+	loadMetadata()
+
+	model, err := models.Archives(
+		Where("id = ?", id),
+		Load(ArchiveRels.Artists),
+		Load(ArchiveRels.Parodies),
+		Load(ArchiveRels.Tags),
+	).OneG()
+	if err != nil {
+		log.Fatalln(err)
+	}
+
+	fn := FileName(model.Path)
+	fnSlug := Slugify(fn)
+
+	if !scrapeF(fn, fnSlug, fpath, model) {
+		scrapeI(fn, fnSlug, ipath, model)
+	}
 
 	buf, err := json.Marshal(metadatas.Map)
 	if err == nil {

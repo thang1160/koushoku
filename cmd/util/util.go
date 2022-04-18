@@ -31,8 +31,11 @@ var opts struct {
 	GenerateThumbnails bool `long:"generate-thumbnails" description:"Generate thumbnails"`
 	GenerateCache      bool `long:"generate-cache" description:"Generate cache"`
 
-	Scrape bool `long:"scrape" description:"Scrape metadata from you-know-where"`
-	Import bool `long:"import" description:"Import metadata from metadata.json"`
+	Scrape     bool    `long:"scrape" description:"Scrape metadata from you-know-where"`
+	ScrapeById []int64 `long:"scrape-id" description:"Scrape metadata from you-know-where by id"`
+	Import     bool    `long:"import" description:"Import metadata from metadata.json"`
+	Fpath      string  `long:"fpath" description:"F Path to import metadata from"`
+	IPath      string  `long:"ipath" description:"I Path to import metadata from"`
 }
 
 func main() {
@@ -91,6 +94,13 @@ func main() {
 	if opts.Scrape {
 		log.Println("Scraping metadata...")
 		services.ScrapeMetadata()
+	}
+
+	if len(opts.ScrapeById) > 0 {
+		log.Println("Scraping metadata...")
+		for _, id := range opts.ScrapeById {
+			services.ScrapeMetadataById(id, opts.Fpath, opts.IPath)
+		}
 	}
 
 	if opts.GenerateThumbnails {

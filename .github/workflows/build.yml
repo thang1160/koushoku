@@ -91,9 +91,6 @@ jobs:
         with:
           path: .
 
-      - run: ls
-      - run: ls linux-386
-
       - run: |
           cp -r {assets,templates} linux-386
           cp static/* linux-386

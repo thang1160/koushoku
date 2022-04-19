@@ -1,3 +1,4 @@
+ARCHITECTURES=386 amd64
 LDFLAGS=-ldflags="-s -w"
 
 default: build
@@ -11,9 +12,12 @@ test:
 	go test ./... -v -timeout 10m
 
 build:
-	go build ${LDFLAGS} -o ./bin/webServer ./cmd/webServer/webServer.go
-	go build ${LDFLAGS} -o ./bin/dataServer ./cmd/dataServer/dataServer.go
-	go build ${LDFLAGS} -o ./bin/util ./cmd/util/util.go
+	$(foreach GOARCH,$(ARCHITECTURES),\
+		$(shell export GOARCH=$(GOARCH))\
+		$(shell go build $(LDFLAGS) -o ./bin/$(GOARCH)/webServer ./cmd/webServer/webServer.go)\
+		$(shell go build $(LDFLAGS) -o ./bin/$(GOARCH)/dataServer ./cmd/dataServer/dataServer.go)\
+		$(shell go build $(LDFLAGS) -o ./bin/$(GOARCH)/util ./cmd/util/util.go)\
+	)\
 
 build-web:
 	cd web && yarn && yarn prod

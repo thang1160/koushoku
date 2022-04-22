@@ -51,7 +51,7 @@ jobs:
       - uses: actions/upload-artifact@v3
         with:
           name: linux-amd64
-          path: bin/386
+          path: bin/amd64
           retention-days: 1
 
       - uses: actions/upload-artifact@v3

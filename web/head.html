@@ -45,7 +45,7 @@
     {{- end -}}
 
 
-    <meta name="application-name" content="Koushoku" />
+    <meta name="application-name" content="{{ .title }}" />
     <meta name="theme-color" content="#0c0c0c" />
 
     <meta itemprop="name" content="{{ $title }}" />
@@ -98,16 +98,5 @@
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <link rel="manifest" href="/app.webmanifest" />
     <link rel="canonical" href="{{ .url }}" />
-
-    <!-- Global site tag (gtag.js) - Google Analytics -->
-    <script async src="https://www.googletagmanager.com/gtag/js?id=G-R3DS5B2EFW"></script>
-    <script>
-      window.dataLayer = window.dataLayer || [];
-      function gtag() {
-        dataLayer.push(arguments);
-      }
-      gtag("js", new Date());
-      gtag("config", "G-R3DS5B2EFW");
-    </script>
   </head>
 {{- end }}

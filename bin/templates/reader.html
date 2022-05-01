@@ -2,7 +2,12 @@
   <!DOCTYPE html>
   <html lang="{{ language }}">
     {{- template "head" . }}
-    <body id="reader">
+    <body
+      id="reader"
+      data-id="{{ .archive.ID }}"
+      data-slug="{{ .archive.Slug }}"
+      data-total-pages="{{ .archive.Pages }}"
+    >
       <header>
         {{- template "reader_pagination". }}
       </header>

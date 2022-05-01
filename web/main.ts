@@ -66,7 +66,6 @@ const initReader = () => {
   ({ origin } = new URL(img.src));
 
   const mutex = { current: false };
-  const rect = page.getBoundingClientRect();
 
   pages.push(...Array.from({ length: total }, (_, i) => ({ isViewing: i + 1 === current })));
 
@@ -140,7 +139,7 @@ const initReader = () => {
     preventDefault(ev);
 
     const target = ev.target as HTMLAnchorElement;
-    const isPrev = ev.screenX - rect.x <= target.clientWidth / 2;
+    const isPrev = ev.offsetX <= (target.clientWidth * settings.zoomLevel) / 2;
 
     if (isPrev) {
       if (current > 1) changePage(current - 1);

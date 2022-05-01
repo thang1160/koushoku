@@ -13,31 +13,37 @@
         {{- end }}
         <h2>Submit</h2>
         <p>
-          Submission has a limit of 4096 characters, and URLs must be separated by new lines. You can only submit 10
-          submissions per day, and they will be reviewed manually within less than 7 days (maybe).
+          Submission has a limit of 10.240 characters and URLs must be separated by new lines. You can only submit 10
+          submissions per day and they will be reviewed manually within less than 7 days.
         </p>
         <h3>Rules for submission</h3>
         <ul>
-          <li>No illustrations, non-h, westerns and 1-page manga/doujins</li>
+          <li>No non-h and 1-page manga/doujins</li>
           <li>No watermarks and compressions</li>
-          <li>Content must be at the highest quality</li>
-          <li>Content must be related to english-translated licensed manga or doujinshi</li>
+          <li>No downscaling or force upscaling</li>
         </ul>
-        <p>
-          Note that this is not a request form. URL must be either a site which allow downloading, a direct download
-          link or a torrent. Submitted archives will be credited, but you can leave it blank if you wish to stay
-          anonymous.
-        </p>
+        <p>To replace an existing archive with a better version, put [Replace] or [Revision] prefix in the title.</p>
         <form method="post" enctype="multipart/form-data">
-          <input type="text" name="name" placeholder="Title" required maxlength="1024" autocomplete="off" />
+          <input
+            type="text"
+            name="name"
+            placeholder="Title"
+            required
+            maxlength="1024"
+            autocomplete="off"
+            {{- if .lastSubmissionName }}value="{{ .lastSubmissionName }}"{{- end }}
+          />
           <input
             type="text"
             name="submitter"
-            placeholder="Submitter name (Optional)"
+            placeholder="Submitter/uploader name (Optional)"
             autocomplete="off"
             maxlength="128"
+            {{- if .lastSubmissionSubmitter }}value="{{ .lastSubmissionSubmitter }}"{{- end }}
           />
-          <textarea name="content" placeholder="URLs, separated by new line." maxlength="4096" required></textarea>
+          <textarea name="content" placeholder="URLs, separated by new line." maxlength="10240" required>
+{{- if .lastSubmissionContent }}{{ .lastSubmissionContent }}{{- end }}</textarea
+          >
           <button type="submit">Submit</button>
         </form>
       </main>

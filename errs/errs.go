@@ -30,6 +30,8 @@ var (
 	SubmissionNameRequired     = errors.New("Submission name is required")
 	SubmissionNameTooLong      = errors.New("Submission name must be at most 1024 characters")
 	SubmissionSubmitterTooLong = errors.New("Submission submitter must be at most 128 characters")
+	SubmissionContentRequired  = errors.New("Submission content is required")
+	SubmissionContentTooLong   = errors.New("Submission content must be at most 10240 characters")
 )
 
 var (

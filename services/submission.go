@@ -33,11 +33,18 @@ func CreateSubmission(name, submitter, content string) (*modext.Submission, erro
 		return nil, errs.SubmissionSubmitterTooLong
 	}
 
+	content = strings.TrimSpace(content)
+	if len(content) == 0 {
+		return nil, errs.SubmissionContentRequired
+	} else if len(content) > 10240 {
+		return nil, errs.SubmissionContentTooLong
+	}
+
 	submission := &models.Submission{
 		CreatedAt: time.Now().UTC(),
 		Name:      name,
 		Submitter: null.StringFrom(submitter),
-		Content:   strings.TrimSpace(content),
+		Content:   content,
 	}
 	if err := submission.InsertG(boil.Whitelist("created_at", "name", "submitter", "content")); err != nil {
 		log.Println(err)

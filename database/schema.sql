@@ -143,7 +143,6 @@ CREATE TABLE IF NOT EXISTS user_favorites (
 CREATE INDEX IF NOT EXISTS user_favorites_user_id_index ON user_favorites(user_id);
 CREATE INDEX IF NOT EXISTS user_favorites_archive_id_index ON user_favorites(archive_id);
 
-
 CREATE TABLE IF NOT EXISTS submission (
   id  BIGSERIAL PRIMARY KEY,
   
@@ -161,6 +160,9 @@ CREATE TABLE IF NOT EXISTS submission (
   accepted BOOLEAN NOT NULL DEFAULT FALSE,
   rejected BOOLEAN NOT NULL DEFAULT FALSE
 );
+
+ALTER TABLE submission
+  ALTER COLUMN content TYPE VARCHAR(10240);
 
 CREATE INDEX IF NOT EXISTS submission_created_at_index ON submission(created_at);
 CREATE INDEX IF NOT EXISTS submission_updated_at_index ON submission(updated_at);

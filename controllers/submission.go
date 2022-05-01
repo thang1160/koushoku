@@ -33,6 +33,10 @@ func SubmitPost(c *server.Context) {
 
 	_, err := services.CreateSubmission(payload.Name, payload.Submitter, payload.Content)
 	if err != nil {
+		c.SetData("lastSubmissionName", payload.Name)
+		c.SetData("lastSubmissionSubmitter", payload.Submitter)
+		c.SetData("lastSubmissionContent", payload.Content)
+
 		c.SetData("error", err)
 		c.HTML(http.StatusBadRequest, submitTemplateName)
 		return

@@ -38,7 +38,7 @@ func insertArchive(archive *modext.Archive, upsert bool) (*modext.Archive, error
 	}
 
 	selectMods := []QueryMod{
-		Where("archive.slug ILIKE ?", archive.Slug),
+		Where("archive.slug ILIKE ? AND archive.expunged IS FALSE", archive.Slug),
 		Load(ArchiveRels.Artists),
 		Load(ArchiveRels.Circles),
 		Load(ArchiveRels.Magazines),
@@ -581,7 +581,7 @@ func (opts *GetArchivesOptions) ToQueries() (selectMods, countMods []QueryMod) {
 		selectMods = append(selectMods, Where(strings.Join(rawQueries, " AND "), rawArgs...))
 	}
 
-	selectMods = append(selectMods, Where("archive.published_at IS NOT NULL"))
+	selectMods = append(selectMods, Where("archive.published_at IS NOT NULL AND archive.expunged IS FALSE"))
 	countMods = append(countMods, selectMods...)
 
 	selectMods = append(selectMods, OrderBy(fmt.Sprintf("%s %s", opts.Sort, opts.Order)))
@@ -653,7 +653,7 @@ func GetArchiveCount() (int64, error) {
 		return c.(int64), nil
 	}
 
-	count, err := models.Archives(Where("published_at IS NOT NULL")).CountG()
+	count, err := models.Archives(Where("published_at IS NOT NULL AND expunged IS FALSE")).CountG()
 	if err != nil {
 		log.Println(err)
 		return 0, errs.Unknown
@@ -681,7 +681,7 @@ func GetArchiveStats() (size, pages int64, err error) {
 		return
 	}
 
-	archives, err := models.Archives(Where("published_at IS NOT NULL")).AllG()
+	archives, err := models.Archives(Where("published_at IS NOT NULL AND expunged IS FALSE")).AllG()
 	if err != nil {
 		log.Println(err)
 		err = errs.Unknown
@@ -757,6 +757,44 @@ func UnpublishArchives() error {
 		return errs.Unknown
 	}
 	// TODO: Purge cache
+	return nil
+}
+
+func ExpungeArchive(id int64) error {
+	archive, err := models.FindArchiveG(id)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return errs.ArchiveNotFound
+		}
+		log.Println(err)
+		return errs.Unknown
+	}
+
+	archive.Expunged = !archive.Expunged
+	if err := archive.UpdateG(boil.Whitelist(ArchiveCols.Expunged)); err != nil {
+		log.Println(err)
+		return errs.Unknown
+	}
+
+	return nil
+}
+
+func RedirectArchive(from, to int64) error {
+	archive, err := models.FindArchiveG(from)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return errs.ArchiveNotFound
+		}
+		log.Println(err)
+		return errs.Unknown
+	}
+
+	archive.RedirectID = null.Int64From(to)
+	if err := archive.UpdateG(boil.Whitelist(ArchiveCols.RedirectID)); err != nil {
+		log.Println(err)
+		return errs.Unknown
+	}
+
 	return nil
 }
 

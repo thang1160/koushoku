@@ -45,6 +45,10 @@ var opts struct {
 	Subs bool    `long:"subs" description:"List submissions"`
 	Sub  int64   `long:"sub" description:"Submission id"`
 	Link []int64 `long:"link" description:"Link archive(s) by id to submission"`
+
+	Archives []int64 `long:"archive"`
+	Expunge  bool    `long:"expunge"`
+	Redirect int64   `long:"redirect"`
 }
 
 func main() {
@@ -208,5 +212,17 @@ func main() {
 	if opts.GenerateCache {
 		log.Println("Generating cache...")
 		services.GenerateCache()
+	}
+
+	if len(opts.Archives) > 0 && (opts.Redirect > 0 || opts.Expunge) {
+		for _, id := range opts.Archives {
+			if opts.Expunge {
+				services.ExpungeArchive(id)
+			}
+
+			if opts.Redirect > 0 {
+				services.RedirectArchive(id, opts.Redirect)
+			}
+		}
 	}
 }

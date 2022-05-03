@@ -6,6 +6,9 @@ type Archive struct {
 	ID   int64  `json:"id"`
 	Path string `json:"path"`
 
+	Expunged   bool  `json:"expunged,omitempty"`
+	RedirectId int64 `json:"redirectId,omitempty"`
+
 	CreatedAt   int64 `json:"createdAt"`
 	UpdatedAt   int64 `json:"updatedAt"`
 	PublishedAt int64 `json:"publishedAt,omitempty"`
@@ -29,8 +32,9 @@ func NewArchive(model *models.Archive) *Archive {
 	}
 
 	archive := &Archive{
-		ID:   model.ID,
-		Path: model.Path,
+		ID:       model.ID,
+		Path:     model.Path,
+		Expunged: model.Expunged,
 
 		CreatedAt: model.CreatedAt.Unix(),
 		UpdatedAt: model.UpdatedAt.Unix(),
@@ -39,6 +43,10 @@ func NewArchive(model *models.Archive) *Archive {
 		Slug:  model.Slug,
 		Pages: model.Pages,
 		Size:  model.Size,
+	}
+
+	if model.RedirectID.Valid {
+		archive.RedirectId = model.RedirectID.Int64
 	}
 
 	if model.PublishedAt.Valid {
